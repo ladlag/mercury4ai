@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   postgres:
     image: postgres:16-alpine
@@ -78,7 +76,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mercury4ai-worker
     command: rq worker --url redis://redis:6379/0 crawl_tasks
     env_file:
       - .env
@@ -96,7 +93,7 @@ services:
     volumes:
       - ./app:/app/app
     deploy:
-      replicas: ${WORKER_CONCURRENCY:-2}
+      replicas: 2
 
 volumes:
   postgres_data:
