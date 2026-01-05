@@ -13,6 +13,7 @@ crawl_config:
 llm_provider: openai
 llm_model: gpt-4-turbo
 llm_params:
+  api_key: "your-openai-api-key-here"
   temperature: 0.0
   max_tokens: 1500
 

@@ -79,6 +79,7 @@ curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
   "llm_provider": "openai",
   "llm_model": "gpt-4",
   "llm_params": {
+    "api_key": "your-openai-api-key-here",
     "temperature": 0.1
   },
   "prompt_template": "Extract key information from this page.",
@@ -93,6 +94,8 @@ curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
   "fallback_max_size_mb": 10
 }
 ```
+
+**Important**: Include your LLM API key in `llm_params.api_key` for LLM extraction to work.
 
 ## Configuration Options
 
@@ -114,6 +117,8 @@ curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
 - `llm_provider`: LLM provider (openai, anthropic, etc.)
 - `llm_model`: Model name (gpt-4, claude-3-opus, etc.)
 - `llm_params`: LLM parameters (object)
+  - **Important**: Include `api_key` in llm_params for LLM extraction
+  - Example: `{"api_key": "sk-...", "temperature": 0.1}`
 - `prompt_template`: Extraction instruction (string)
 - `output_schema`: JSON Schema for output (object)
 - `deduplication_enabled`: Enable URL deduplication (boolean, default: true)

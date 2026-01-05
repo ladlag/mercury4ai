@@ -99,6 +99,7 @@ curl -X POST http://localhost:8000/api/tasks \
     "llm_provider": "openai",
     "llm_model": "gpt-4",
     "llm_params": {
+      "api_key": "your-openai-api-key-here",
       "temperature": 0.1
     },
     "prompt_template": "Extract the title, author, publication date, and main content from this article.",
@@ -260,11 +261,44 @@ Each task supports:
 - **URLs**: List of URLs to crawl
 - **Crawl Config**: crawl4ai-specific settings (JS code, CSS selectors, etc.)
 - **LLM Config**: Provider, model, and parameters for extraction
+  - **Important**: Include your LLM API key in `llm_params`: `{"api_key": "sk-...", "temperature": 0.1}`
+  - Supported providers: openai, anthropic, groq, etc.
 - **Prompt Template**: Instruction for LLM extraction
 - **Output Schema**: JSON Schema for structured output
 - **Deduplication**: Enable/disable URL deduplication
 - **Date Filtering**: Only crawl content after a specific date
 - **Fallback Download**: Automatic retry for failed media downloads
+
+### LLM Extraction
+
+To use LLM-powered structured extraction:
+
+1. Set `llm_provider` (e.g., "openai", "anthropic")
+2. Set `llm_model` (e.g., "gpt-4", "claude-3-opus")
+3. **Include API key in `llm_params`**: `{"api_key": "your-key-here", "temperature": 0.1}`
+4. Define `prompt_template` with extraction instructions
+5. Optionally define `output_schema` for structured JSON output
+
+**Example with OpenAI:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "gpt-4",
+  "llm_params": {
+    "api_key": "sk-...",
+    "temperature": 0.1,
+    "max_tokens": 2000
+  },
+  "prompt_template": "Extract the title and main content...",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string"},
+      "content": {"type": "string"}
+    }
+  }
+}
+```
 
 ## Development
 
