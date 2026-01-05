@@ -1,0 +1,57 @@
+{
+  "name": "News Article Extraction",
+  "description": "Extract structured data from news articles",
+  "urls": [
+    "https://example.com/news/article1",
+    "https://example.com/news/article2"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "screenshot": false,
+    "pdf": false
+  },
+  "llm_provider": "openai",
+  "llm_model": "gpt-4",
+  "llm_params": {
+    "temperature": 0.1,
+    "max_tokens": 2000
+  },
+  "prompt_template": "Extract the following information from this news article:\n- Title\n- Author name\n- Publication date\n- Main content/body text\n- Categories/tags\n- Summary (if available)\n\nReturn as structured JSON.",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "Article title"
+      },
+      "author": {
+        "type": "string",
+        "description": "Author name"
+      },
+      "published_date": {
+        "type": "string",
+        "description": "Publication date in ISO format"
+      },
+      "content": {
+        "type": "string",
+        "description": "Main article content"
+      },
+      "categories": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Article categories or tags"
+      },
+      "summary": {
+        "type": "string",
+        "description": "Article summary"
+      }
+    },
+    "required": ["title", "content"]
+  },
+  "deduplication_enabled": true,
+  "only_after_date": null,
+  "fallback_download_enabled": true,
+  "fallback_max_size_mb": 10
+}

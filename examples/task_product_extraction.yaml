@@ -1,0 +1,64 @@
+name: Product Catalog Scraping
+description: Extract product information from e-commerce pages
+urls:
+  - https://example.com/products/item1
+  - https://example.com/products/item2
+  - https://example.com/products/item3
+
+crawl_config:
+  verbose: true
+  screenshot: true
+  wait_for: ".product-details"
+
+llm_provider: openai
+llm_model: gpt-4-turbo
+llm_params:
+  temperature: 0.0
+  max_tokens: 1500
+
+prompt_template: |
+  Extract the following product information:
+  - Product name
+  - Price (numeric value)
+  - Currency
+  - Description
+  - Specifications
+  - Availability status
+  - Product images URLs
+  
+  Return as structured JSON with all available fields.
+
+output_schema:
+  type: object
+  properties:
+    name:
+      type: string
+      description: Product name
+    price:
+      type: number
+      description: Product price as number
+    currency:
+      type: string
+      description: Currency code (USD, EUR, etc)
+    description:
+      type: string
+      description: Product description
+    specifications:
+      type: object
+      description: Product specifications as key-value pairs
+    availability:
+      type: string
+      description: Availability status (in_stock, out_of_stock, etc)
+    image_urls:
+      type: array
+      items:
+        type: string
+      description: List of product image URLs
+  required:
+    - name
+    - price
+
+deduplication_enabled: true
+only_after_date: null
+fallback_download_enabled: true
+fallback_max_size_mb: 5

@@ -1,0 +1,54 @@
+{
+  "name": "Research Paper Extraction",
+  "description": "Extract metadata and content from research papers",
+  "urls": [
+    "https://arxiv.org/abs/2301.00001"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "pdf": true
+  },
+  "llm_provider": "anthropic",
+  "llm_model": "claude-3-opus",
+  "llm_params": {
+    "temperature": 0.0,
+    "max_tokens": 4000
+  },
+  "prompt_template": "Extract the following from this research paper:\n- Title\n- Authors (list)\n- Abstract\n- Publication date\n- DOI or identifier\n- Keywords\n- Main findings (brief summary)\n\nReturn as structured JSON.",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "authors": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "abstract": {
+        "type": "string"
+      },
+      "published_date": {
+        "type": "string"
+      },
+      "doi": {
+        "type": "string"
+      },
+      "keywords": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "summary": {
+        "type": "string"
+      }
+    },
+    "required": ["title", "abstract"]
+  },
+  "deduplication_enabled": true,
+  "fallback_download_enabled": true,
+  "fallback_max_size_mb": 50
+}
