@@ -162,8 +162,11 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     })
         
         # Generate run manifest and resource index
-        manifest = generate_run_manifest(run_id, task, urls_crawled, urls_failed, documents_created, error_details)
-        resource_index = generate_resource_index(db, run_id, has_errors=len(error_details) > 0)
+        manifest = generate_run_manifest(
+            run_id, task, urls_crawled, urls_failed, documents_created, 
+            error_details=error_details
+        )
+        resource_index = generate_resource_index(db, run_id, has_errors=bool(error_details))
         
         # Save manifest and index to MinIO
         manifest_path = generate_minio_path(run_id, 'logs', 'run_manifest.json')
@@ -353,7 +356,13 @@ async def process_image(
 
 
 def generate_run_manifest(
-    run_id: str, task, urls_crawled: int, urls_failed: int, documents_created: int, error_details: List[Dict[str, Any]] = None
+    run_id: str, 
+    task, 
+    urls_crawled: int, 
+    urls_failed: int, 
+    documents_created: int,
+    *,
+    error_details: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """Generate run manifest"""
     manifest = {
