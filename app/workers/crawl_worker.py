@@ -366,7 +366,7 @@ async def process_image(
 def generate_run_manifest(
     run_id: str,
     *,
-    task,
+    task: CrawlTask,
     urls_crawled: int,
     urls_failed: int,
     documents_created: int,

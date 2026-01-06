@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import verify_api_key
 from app.core.redis_client import get_redis_client
+from app.core.minio_client import minio_client
 from app.schemas import TaskRunResponse, RunResultResponse, DocumentResponse, DocumentImageResponse, DocumentAttachmentResponse
 from app.services.task_service import TaskService, RunService
+from app.services.crawler_service import generate_minio_path
 from rq import Queue
 from rq.job import Job
 import logging
@@ -108,10 +110,6 @@ async def get_run_logs(
     
     if not run.logs_path:
         raise HTTPException(status_code=404, detail="Logs not available")
-    
-    # Return MinIO paths
-    from app.core.minio_client import minio_client
-    from app.services.crawler_service import generate_minio_path
     
     manifest_url = None
     if run.manifest_path:
