@@ -70,10 +70,10 @@ class CrawlerService:
             crawl_params = {
                 'url': url,
                 'cache_mode': CacheMode.BYPASS,
-                'verbose': crawl_config.get('verbose', True),
             }
             
             # Add optional parameters
+            # Note: verbose parameter removed to avoid conflict with crawl4ai 0.7.8
             if crawl_config.get('js_code'):
                 crawl_params['js_code'] = crawl_config['js_code']
             if crawl_config.get('wait_for'):
