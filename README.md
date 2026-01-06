@@ -201,11 +201,17 @@ Returns MinIO paths and presigned URLs for downloading artifacts.
 
 See the `examples/` directory for sample task configurations:
 
+**Basic Examples:**
 - `task_news_extraction.json` - Full LLM configuration specified in task
 - `task_product_extraction.yaml` - Full LLM configuration in YAML format
 - `task_with_default_llm.yaml` - Uses default LLM config from environment (recommended)
 - `task_partial_llm_override.json` - Partial override (uses default API key, custom model/temperature)
 - `task_simple_scraping.yaml` - No LLM extraction, basic scraping only
+
+**Chinese LLM Examples (国产大模型):**
+- `task_chinese_llm_deepseek.json` - DeepSeek configuration example
+- `task_chinese_llm_qwen.yaml` - Qwen/Tongyi Qianwen configuration
+- `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling with Chinese LLM
 
 ### Export/Import Tasks
 
@@ -382,6 +388,113 @@ Specify complete LLM configuration in the task (original method):
     }
   }
 }
+```
+
+## Chinese Large Language Model Support (国产大模型支持)
+
+Mercury4AI fully supports Chinese domestic LLMs including **DeepSeek**, **Qwen (通义千问)**, and **Wenxin Yiyan (文心一言)** through OpenAI-compatible API interfaces.
+
+### Supported Chinese LLM Providers
+
+#### 1. DeepSeek (深度求索)
+
+**Configuration Example:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "your-deepseek-api-key",
+    "base_url": "https://api.deepseek.com",
+    "temperature": 0.1
+  }
+}
+```
+
+**Or set as defaults in `.env`:**
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_API_KEY=your-deepseek-api-key
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+DEFAULT_LLM_TEMPERATURE=0.1
+```
+
+#### 2. Qwen / Tongyi Qianwen (通义千问)
+
+**Configuration Example:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "qwen-turbo",
+  "llm_params": {
+    "api_key": "your-dashscope-api-key",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "temperature": 0.1
+  }
+}
+```
+
+**Available Models:**
+- `qwen-turbo` - Fast, cost-effective
+- `qwen-plus` - Balanced performance
+- `qwen-max` - Best quality
+
+#### 3. Wenxin Yiyan / ERNIE Bot (文心一言)
+
+**Configuration Example:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "ernie-bot-turbo",
+  "llm_params": {
+    "api_key": "your-baidu-api-key",
+    "base_url": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop",
+    "temperature": 0.1
+  }
+}
+```
+
+### Example Task Configurations
+
+See the `examples/` directory for complete examples:
+- `task_chinese_llm_deepseek.json` - DeepSeek configuration
+- `task_chinese_llm_qwen.yaml` - Qwen configuration  
+- `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling example with Chinese LLM
+
+### Chinese Language Prompts
+
+You can write prompts in Chinese for better extraction quality:
+
+```yaml
+prompt_template: |
+  请从这篇文章中提取以下信息：
+  - 标题
+  - 作者
+  - 发布日期
+  - 主要内容
+  
+  以JSON格式返回结果。
+```
+
+### Data Cleaning with Chinese LLMs
+
+Both data extraction and cleaning benefit from Chinese LLMs:
+
+1. **Primary Extraction**: Use Chinese LLM to extract structured data
+2. **Post-Processing**: The extracted JSON data is automatically cleaned
+3. **Custom Cleaning**: Add additional cleaning logic in `prompt_template`
+
+**Example with cleaning instructions:**
+```yaml
+prompt_template: |
+  请提取文章信息，并进行以下数据清洗：
+  1. 移除所有HTML标签
+  2. 统一日期格式为 YYYY-MM-DD
+  3. 删除多余的空格和换行
+  4. 规范化标点符号
+  
+  返回清洗后的JSON数据。
 ```
 
 ## Development
