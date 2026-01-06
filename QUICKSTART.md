@@ -15,16 +15,18 @@ Get Mercury4AI up and running in 5 minutes!
 ```bash
 git clone https://github.com/ladlag/mercury4ai.git
 cd mercury4ai
-cp .env.example .env
 ```
 
-**Important**: Edit `.env` and change `API_KEY` to a secure value:
+**Optional Configuration**: The application works with default settings. For production or custom setups, create a `.env` file:
 
 ```bash
+cp .env.example .env
 # Generate a secure API key
 openssl rand -hex 32
-# Copy the output and update API_KEY in .env
+# Update API_KEY in .env with the generated key
 ```
+
+**Note**: Without a `.env` file, the default `API_KEY` is `your-secure-api-key-change-this`. Change this in production.
 
 ### 2. Start Services
 
