@@ -2,18 +2,31 @@
 
 A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue), PostgreSQL, MinIO, and crawl4ai. This system enables LLM-powered structured data extraction from web pages with automatic image/attachment handling and comprehensive result archiving.
 
+**Optimized for Chinese LLMs**: Recommended default is DeepSeek (深度求索) for cost-effective, high-quality extraction.
+
 ## Features
 
 - **FastAPI RESTful API** with API Key authentication
 - **Task Queue Processing** using RQ and Redis
 - **LLM-Powered Extraction** via crawl4ai with schema-based structured output
+- **Chinese LLM Support** - DeepSeek (深度求索), Qwen (通义千问), ERNIE (文心一言)
 - **PostgreSQL Storage** for tasks, runs, and documents
 - **MinIO Object Storage** for artifacts (markdown, JSON, images, attachments, logs)
+- **Reusable Templates** for prompts and output schemas
 - **Intelligent Media Handling** with fallback download strategy
 - **URL Deduplication** and incremental crawling support
 - **Task Import/Export** in JSON and YAML formats
 - **Complete Artifact Archiving** with manifest and resource index
 - **Docker Compose** deployment for easy setup
+
+## Documentation
+
+📚 **Complete documentation:**
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
+- **[CONFIG.md](CONFIG.md)** - Complete configuration guide with all options explained
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design principles
+- **[prompt_templates/README.md](prompt_templates/README.md)** - Reusable templates guide
 
 ## Architecture
 
@@ -30,6 +43,8 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 └─────────────┘                                  └─────────────┘
 ```
 
+For detailed architecture, see [ARCHITECTURE.md](ARCHITECTURE.md).
+
 ## Quick Start
 
 ### Prerequisites
@@ -44,21 +59,6 @@ git clone https://github.com/ladlag/mercury4ai.git
 cd mercury4ai
 ```
 
-### Quick Integrity Check (快速完整性检查)
-
-Before starting, you can verify the code and configuration integrity:
-
-```bash
-chmod +x check_integrity.sh
-./check_integrity.sh
-```
-
-This will check:
-- Directory structure and core files
-- Python/YAML/JSON syntax
-- Docker configuration
-- Dependencies and documentation
-
 ### 2. Configure Environment (Optional)
 
 The application will work out-of-the-box with default configurations. For production deployments or custom configurations:
@@ -72,14 +72,18 @@ cp .env.example .env
 - The default `API_KEY` is `your-secure-api-key-change-this`. Change this in production by setting the `API_KEY` environment variable or creating a `.env` file.
 - If you don't create a `.env` file, the application will use defaults from `.env.example`. This is suitable for development and testing.
 
-**For LLM-powered extraction**, set default LLM configuration in your `.env` file:
+**For LLM-powered extraction**, set default LLM configuration in your `.env` file.
+
+**Recommended: Use DeepSeek (cost-effective Chinese LLM)**:
 ```bash
 DEFAULT_LLM_PROVIDER=openai
-DEFAULT_LLM_MODEL=gpt-4
-DEFAULT_LLM_API_KEY=sk-your-api-key-here
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_API_KEY=your-deepseek-api-key-here
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
 DEFAULT_LLM_TEMPERATURE=0.1
 ```
-This allows you to create tasks without repeating LLM configuration in every task.
+
+See [CONFIG.md](CONFIG.md) for complete configuration options.
 
 ### 3. Start Services
 
@@ -224,18 +228,11 @@ See the `examples/` directory for sample task configurations:
 - `task_simple_scraping.yaml` - No LLM extraction, basic scraping only
 
 **Chinese LLM Examples (国产大模型):**
-- `task_chinese_llm_deepseek.json` - DeepSeek configuration example
+- `task_chinese_llm_deepseek.json` - DeepSeek configuration example (recommended)
 - `task_chinese_llm_qwen.yaml` - Qwen/Tongyi Qianwen configuration
 - `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling with Chinese LLM
 
-**📖 Detailed Guide for bjhdedu Crawl:**  
-See [BJHDEDU_CRAWL_GUIDE.md](BJHDEDU_CRAWL_GUIDE.md) for complete step-by-step instructions on crawling https://www.bjhdedu.cn/zxfw/fwzt/szx/
-
-**🧪 Automated Testing:**  
-Run the automated test for bjhdedu crawl:
-```bash
-./test_bjhdedu_crawl.sh
-```
+For detailed Chinese LLM setup, see [CONFIG.md](CONFIG.md#chinese-llm-setup).
 
 ### Export/Import Tasks
 
@@ -298,39 +295,15 @@ mercury4ai/
 
 ### Environment Variables
 
-See `.env.example` for all configuration options:
+See [CONFIG.md](CONFIG.md) for complete configuration guide.
 
+Key environment variables:
 - `API_KEY`: API authentication key (required)
 - `POSTGRES_*`: Database configuration
 - `REDIS_*`: Redis configuration
 - `MINIO_*`: MinIO configuration
 - `FALLBACK_DOWNLOAD_*`: Fallback download settings
-- `DEFAULT_LLM_*`: Default LLM settings (see below)
-
-### Default LLM Configuration
-
-You can set default LLM configuration in your environment variables to avoid repeating the same settings in every task:
-
-- `DEFAULT_LLM_PROVIDER`: Default LLM provider (e.g., "openai", "anthropic")
-- `DEFAULT_LLM_MODEL`: Default model name (e.g., "gpt-4", "gpt-3.5-turbo")
-- `DEFAULT_LLM_API_KEY`: Default API key for the LLM provider
-- `DEFAULT_LLM_BASE_URL`: Optional base URL for custom LLM endpoints
-- `DEFAULT_LLM_TEMPERATURE`: Optional default temperature setting
-- `DEFAULT_LLM_MAX_TOKENS`: Optional default max tokens setting
-
-**How it works:**
-- If a task doesn't specify LLM configuration, the defaults from environment variables are used
-- If a task specifies partial LLM configuration, it's merged with defaults (task values take precedence)
-- This makes it much easier to manage multiple tasks without repeating API keys
-
-**Example `.env` configuration:**
-```bash
-DEFAULT_LLM_PROVIDER=openai
-DEFAULT_LLM_MODEL=gpt-4
-DEFAULT_LLM_API_KEY=sk-your-api-key-here
-DEFAULT_LLM_TEMPERATURE=0.1
-DEFAULT_LLM_MAX_TOKENS=2000
-```
+- `DEFAULT_LLM_*`: Default LLM settings
 
 ### Task Configuration
 
@@ -338,28 +311,32 @@ Each task supports:
 
 - **URLs**: List of URLs to crawl
 - **Crawl Config**: crawl4ai-specific settings (JS code, CSS selectors, etc.)
-- **LLM Config**: Provider, model, and parameters for extraction (optional - uses defaults if not specified)
-  - `llm_provider`: LLM provider (uses `DEFAULT_LLM_PROVIDER` if not specified)
-  - `llm_model`: Model name (uses `DEFAULT_LLM_MODEL` if not specified)
-  - `llm_params`: Additional parameters like API key, temperature, etc. (merged with defaults)
-  - Supported providers: openai, anthropic, groq, etc.
 - **LLM Config**: Provider, model, and parameters for extraction
-  - **Important**: Include your LLM API key in `llm_params`: `{"api_key": "sk-...", "temperature": 0.1}`
-  - Supported providers: openai, anthropic, groq, deepseek, qwen, ernie, etc.
-  - **Chinese LLM Support**: Deepseek (深度求索), Qwen (通义千问), ERNIE (文心一言)
-- **Prompt Template**: Instruction for LLM extraction
-- **Output Schema**: JSON Schema for structured output
+  - Supported providers: openai, anthropic, groq, **deepseek**, **qwen**, **ernie**, etc.
+  - **Recommended**: DeepSeek (深度求索) for cost-effective Chinese LLM
+- **Prompt Template**: Instruction for LLM extraction (can reference reusable templates)
+- **Output Schema**: JSON Schema for structured output (can reference reusable schemas)
 - **Deduplication**: Enable/disable URL deduplication
 - **Date Filtering**: Only crawl content after a specific date
 - **Fallback Download**: Automatic retry for failed media downloads
 
-### LLM Extraction
+See [CONFIG.md](CONFIG.md) for detailed configuration options and examples.
 
-To use LLM-powered structured extraction, you have three options:
+## LLM Support
 
-#### Option 1: Use Default Configuration (Recommended)
+### Default Configuration (Recommended)
 
-Set default LLM config in `.env` and only specify prompt and schema in tasks:
+Set default LLM config in `.env` to avoid repetition:
+
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_API_KEY=your-deepseek-api-key
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+DEFAULT_LLM_TEMPERATURE=0.1
+```
+
+Then tasks only need prompt and schema:
 
 ```json
 {
@@ -376,62 +353,15 @@ Set default LLM config in `.env` and only specify prompt and schema in tasks:
 }
 ```
 
-#### Option 2: Partial Override
+### Chinese LLM Support (国产大模型)
 
-Use defaults but override specific parameters:
-1. Set `llm_provider` (e.g., "openai", "anthropic", "deepseek", "qwen", "ernie")
-2. Set `llm_model` (e.g., "gpt-4", "claude-3-opus", "deepseek-chat", "qwen-plus", "ernie-bot")
-3. **Include API key in `llm_params`**: `{"api_key": "your-key-here", "temperature": 0.1}`
-4. Define `prompt_template` with extraction instructions
-5. Optionally define `output_schema` for structured JSON output
+Mercury4AI fully supports Chinese domestic LLMs:
 
-```json
-{
-  "name": "Custom Temperature Task",
-  "urls": ["https://example.com"],
-  "llm_model": "gpt-3.5-turbo",
-  "llm_params": {
-    "temperature": 0.3
-  },
-  "prompt_template": "Extract the title and content..."
-}
-```
+- **DeepSeek (深度求索)** - Recommended default, cost-effective
+- **Qwen (通义千问)** - Alibaba's LLM with multiple models
+- **ERNIE (文心一言)** - Baidu's LLM
 
-#### Option 3: Full Configuration
-
-Specify complete LLM configuration in the task (original method):
-
-```json
-{
-  "name": "Fully Configured Task",
-  "urls": ["https://example.com"],
-  "llm_provider": "openai",
-  "llm_model": "gpt-4",
-  "llm_params": {
-    "api_key": "sk-...",
-    "temperature": 0.1,
-    "max_tokens": 2000
-  },
-  "prompt_template": "Extract the title and content...",
-  "output_schema": {
-    "type": "object",
-    "properties": {
-      "title": {"type": "string"},
-      "content": {"type": "string"}
-    }
-  }
-}
-```
-
-## Chinese Large Language Model Support (国产大模型支持)
-
-Mercury4AI fully supports Chinese domestic LLMs including **DeepSeek**, **Qwen (通义千问)**, and **Wenxin Yiyan (文心一言)** through OpenAI-compatible API interfaces.
-
-### Supported Chinese LLM Providers
-
-#### 1. DeepSeek (深度求索)
-
-**Configuration Example:**
+**Quick Example with DeepSeek:**
 ```json
 {
   "llm_provider": "openai",
@@ -440,17 +370,40 @@ Mercury4AI fully supports Chinese domestic LLMs including **DeepSeek**, **Qwen (
     "api_key": "your-deepseek-api-key",
     "base_url": "https://api.deepseek.com",
     "temperature": 0.1
-  }
+  },
+  "prompt_template": "请提取文章的标题和内容..."
 }
 ```
 
-**Or set as defaults in `.env`:**
-```bash
-DEFAULT_LLM_PROVIDER=openai
-DEFAULT_LLM_MODEL=deepseek-chat
-DEFAULT_LLM_API_KEY=your-deepseek-api-key
-DEFAULT_LLM_BASE_URL=https://api.deepseek.com
-DEFAULT_LLM_TEMPERATURE=0.1
+For complete Chinese LLM setup and examples, see [CONFIG.md](CONFIG.md#chinese-llm-setup).
+
+## Reusable Templates
+
+Create reusable prompt templates and output schemas for consistent extraction:
+
+**Directory structure:**
+```
+prompt_templates/    # Reusable prompt templates
+  ├── news_article_zh.txt
+  ├── product_info_zh.txt
+  └── ...
+schemas/            # Reusable JSON schemas
+  ├── news_article_zh.json
+  ├── product_info_zh.json
+  └── ...
+```
+
+**Usage in tasks (future enhancement):**
+```json
+{
+  "name": "News Extraction",
+  "urls": ["https://example.com"],
+  "prompt_template": "@prompt_templates/news_article_zh.txt",
+  "output_schema": "@schemas/news_article_zh.json"
+}
+```
+
+See [prompt_templates/README.md](prompt_templates/README.md) for details.
 ```
 
 #### 2. Qwen / Tongyi Qianwen (通义千问)
@@ -565,48 +518,6 @@ prompt_template: |
 
 See `examples/` directory for more examples including Chinese LLM configurations.
 
-## Testing & Validation
-
-### Integrity Check (完整性检查)
-
-Run comprehensive code and configuration integrity check:
-
-```bash
-./check_integrity.sh
-```
-
-This validates:
-- Directory structure and core files
-- Python, YAML, and JSON syntax
-- Docker configuration
-- Dependencies and security settings
-
-### Service Validation (服务验证)
-
-Run service health check and validation:
-
-```bash
-./validate.sh
-```
-
-### Automated Crawl Testing (自动化爬取测试)
-
-Test the complete crawl workflow with bjhdedu example:
-
-```bash
-./test_bjhdedu_crawl.sh
-```
-
-This will automatically:
-- Start Docker services
-- Perform health checks
-- Import and execute a crawl task
-- Monitor progress and validate results
-
-For detailed documentation, see:
-- [BJHDEDU_CRAWL_GUIDE.md](BJHDEDU_CRAWL_GUIDE.md) - Complete bjhdedu crawl guide
-- [INTEGRITY_CHECK_REPORT.md](INTEGRITY_CHECK_REPORT.md) - Integrity check report
-
 ## Development
 
 ### Local Setup
@@ -645,23 +556,20 @@ open http://localhost:8000/docs
 
 ## Troubleshooting
 
-### API Not Responding (HTTP 502 / Connection Timeout)
+### API Not Responding
 
-If the API container is running but not responding to requests:
+If the API container is running but not responding:
 
-1. **Check if you're using the latest docker-compose.yml format:**
-   ```bash
-   grep -A 1 "container_name: mercury4ai-api" docker-compose.yml
-   ```
-   The command should be in array format: `command: ["uvicorn", ...]`
-   
-2. **If using string format, see [DOCKER_COMMAND_FIX.md](DOCKER_COMMAND_FIX.md) for the fix**
+```bash
+# Check API logs
+docker-compose logs -f api
 
-3. **Restart services after updating:**
-   ```bash
-   docker-compose down
-   docker-compose up -d --build
-   ```
+# Restart services
+docker-compose restart api
+
+# Rebuild if needed
+docker-compose up -d --build
+```
 
 ### Check Service Logs
 
@@ -693,6 +601,8 @@ Should show worker service as "Up".
 ### MinIO Access Issues
 
 Access MinIO console at http://localhost:9001 with credentials from `.env` (default: minioadmin/minioadmin). Verify bucket `mercury4ai` exists.
+
+For more troubleshooting, see [CONFIG.md](CONFIG.md#troubleshooting).
 
 ## API Endpoints
 
@@ -729,3 +639,12 @@ MIT License
 
 For issues and questions:
 - GitHub Issues: https://github.com/ladlag/mercury4ai/issues
+- Documentation: See links below
+
+## Additional Documentation
+
+- **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
+- **[CONFIG.md](CONFIG.md)** - Complete configuration guide
+- **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment
+- **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture
+- **[prompt_templates/README.md](prompt_templates/README.md)** - Reusable templates

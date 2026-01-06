@@ -2,232 +2,154 @@
 
 This directory contains example task configurations in both JSON and YAML formats.
 
-## Examples
+For complete configuration documentation, see:
+- **[CONFIG.md](../CONFIG.md)** - Complete configuration guide
+- **[prompt_templates/README.md](../prompt_templates/README.md)** - Reusable templates
 
-### 1. News Article Extraction (`task_news_extraction.json`)
+## Quick Start
 
-Extracts structured data from news articles including title, author, publication date, content, categories, and summary.
+Import any example task:
 
-**Usage:**
 ```bash
+# Import JSON task
 curl -X POST http://localhost:8000/api/tasks/import?format=json \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: text/plain" \
-  --data-binary @task_news_extraction.json
-```
+  --data-binary @task_chinese_llm_deepseek.json
 
-### 2. Chinese News Extraction with Deepseek (`task_chinese_news_deepseek.json`)
-
-使用Deepseek国产大模型提取中文新闻文章的结构化数据。
-Extracts structured data from Chinese news articles using Deepseek LLM.
-
-**Usage:**
-```bash
-curl -X POST http://localhost:8000/api/tasks/import?format=json \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: text/plain" \
-  --data-binary @task_chinese_news_deepseek.json
-```
-
-### 3. Beijing Haidian Education List Scraping (`task_bjhdedu_list.yaml`)
-
-抓取北京海淀教育网列表页示例，支持使用Deepseek、Qwen、ERNIE等国产大模型。
-Example for scraping list pages from Beijing Haidian Education website, supporting Chinese LLM providers.
-
-**Usage:**
-```bash
-curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: text/plain" \
-  --data-binary @task_bjhdedu_list.yaml
-```
-
-### 4. Product Catalog Scraping (`task_product_extraction.yaml`)
-
-Extracts product information from e-commerce pages including name, price, description, specifications, and availability.
-
-**Usage:**
-```bash
-curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: text/plain" \
-  --data-binary @task_product_extraction.yaml
-```
-
-### 5. Research Paper Extraction (`task_research_paper.json`)
-
-Extracts metadata from research papers including title, authors, abstract, DOI, and keywords.
-
-**Usage:**
-```bash
-curl -X POST http://localhost:8000/api/tasks/import?format=json \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: text/plain" \
-  --data-binary @task_research_paper.json
-```
-
-### 6. Simple Web Scraping (`task_simple_scraping.yaml`)
-
-Basic web scraping without LLM extraction - just captures markdown and HTML content.
-
-**Usage:**
-```bash
+# Import YAML task
 curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: text/plain" \
   --data-binary @task_simple_scraping.yaml
 ```
 
+## Examples
+
+### 1. Simple Web Scraping (`task_simple_scraping.yaml`)
+
+Basic web scraping without LLM extraction - just captures markdown and HTML content.
+
+**Best for**: Getting started, testing the system, no LLM needed
+
+### 2. Task with Default LLM (`task_with_default_llm.yaml`)
+
+Uses default LLM configuration from environment variables. Recommended approach for production.
+
+**Best for**: Production use with default LLM settings in `.env`
+
+### 3. Chinese News with DeepSeek (`task_chinese_llm_deepseek.json`)
+
+使用DeepSeek国产大模型提取中文新闻文章的结构化数据。
+Uses DeepSeek (recommended Chinese LLM) for extracting structured data from Chinese news.
+
+**Best for**: Chinese content extraction, cost-effective
+
+### 4. Chinese LLM with Qwen (`task_chinese_llm_qwen.yaml`)
+
+使用通义千问提取中文内容。
+Uses Qwen/Tongyi Qianwen for Chinese content extraction.
+
+**Best for**: Chinese content, Alibaba Cloud users
+
+### 5. News Article Extraction (`task_news_extraction.json`)
+
+Extracts structured data from English news articles with full LLM configuration.
+
+**Best for**: English news sites, complete configuration example
+
+### 6. Product Extraction (`task_product_extraction.yaml`)
+
+Extracts product information from e-commerce pages.
+
+**Best for**: E-commerce sites, product catalogs
+
+### 7. Research Paper (`task_research_paper.json`)
+
+Extracts metadata from research papers including title, authors, abstract, DOI.
+
+**Best for**: Academic papers, arXiv, journals
+
+### 8. Partial LLM Override (`task_partial_llm_override.json`)
+
+Shows how to override specific LLM parameters while using defaults for others.
+
+**Best for**: Custom temperature or model selection
+
+### 9. Beijing Haidian Education List (`task_bjhdedu_list_crawl.yaml`)
+
+Real-world example of list page crawling with Chinese LLM.
+
+**Best for**: Learning list page crawling patterns
+
 ## Supported LLM Providers
 
-Mercury4AI supports multiple LLM providers including Chinese/国产 models:
+### Chinese Providers (国产大模型) - Recommended
+
+#### DeepSeek (深度求索) - Recommended Default ⭐
+- **Model**: `deepseek-chat`
+- **Provider**: `openai`
+- **Base URL**: `https://api.deepseek.com`
+- **Best for**: Cost-effective, high-quality Chinese and English content
+- **API**: https://platform.deepseek.com/
+
+#### Qwen / 通义千问 (Alibaba)
+- **Models**: `qwen-turbo`, `qwen-plus`, `qwen-max`
+- **Provider**: `openai`
+- **Base URL**: `https://dashscope.aliyuncs.com/compatible-mode/v1`
+- **Best for**: Alibaba Cloud integration
+- **API**: https://dashscope.aliyun.com/
+
+#### ERNIE / 文心一言 (Baidu)
+- **Models**: `ernie-bot-turbo`, `ernie-bot`
+- **Provider**: `openai`
+- **Base URL**: `https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop`
+- **Best for**: Baidu Cloud integration
+- **API**: https://cloud.baidu.com/product/wenxinworkshop
 
 ### International Providers
-- **OpenAI**: GPT-4, GPT-3.5-turbo, etc.
+- **OpenAI**: GPT-4, GPT-3.5-turbo
 - **Anthropic**: Claude 3 Opus, Sonnet, Haiku
-- **Google**: Gemini Pro
 - **Groq**: LLaMA models
-- **Ollama**: Local models
 
-### Chinese Providers (国产大模型)
-
-#### 1. Deepseek (深度求索)
-```json
-{
-  "llm_provider": "deepseek",
-  "llm_model": "deepseek-chat",
-  "llm_params": {
-    "api_key": "your-deepseek-api-key",
-    "temperature": 0.1,
-    "max_tokens": 4000
-  }
-}
-```
-
-Available models:
-- `deepseek-chat`: General purpose chat model
-- `deepseek-coder`: Optimized for code
-- `deepseek-reasoner`: For complex reasoning tasks
-
-#### 2. Qwen / 通义千问 (Alibaba)
-```json
-{
-  "llm_provider": "qwen",
-  "llm_model": "qwen-plus",
-  "llm_params": {
-    "api_key": "your-dashscope-api-key",
-    "temperature": 0.1,
-    "max_tokens": 4000
-  }
-}
-```
-
-Available models:
-- `qwen-plus`: Enhanced version
-- `qwen-turbo`: Fast inference
-- `qwen-max`: Most capable model
-
-Get API key from: https://dashscope.aliyun.com/
-
-#### 3. ERNIE / 文心一言 (Baidu)
-```json
-{
-  "llm_provider": "ernie",
-  "llm_model": "ernie-bot",
-  "llm_params": {
-    "api_key": "your-ernie-api-key",
-    "temperature": 0.1,
-    "max_tokens": 4000
-  }
-}
-```
-
-Available models:
-- `ernie-bot`: General purpose
-- `ernie-bot-turbo`: Fast inference
-- `ernie-bot-4`: Most advanced version
-
-Get API key from: https://cloud.baidu.com/product/wenxinworkshop
+For detailed configuration, see [CONFIG.md](../CONFIG.md#chinese-llm-setup).
 
 ## Creating Your Own Tasks
 
-### Minimal Configuration
-
-```json
-{
-  "name": "My Task",
-  "urls": ["https://example.com"],
-  "crawl_config": {},
-  "deduplication_enabled": true,
-  "fallback_download_enabled": true,
-  "fallback_max_size_mb": 10
-}
-```
-
-### With LLM Extraction
-
-```json
-{
-  "name": "My LLM Task",
-  "urls": ["https://example.com"],
-  "crawl_config": {
-    "verbose": true
-  },
-  "llm_provider": "openai",
-  "llm_model": "gpt-4",
-  "llm_params": {
-    "api_key": "your-openai-api-key-here",
-    "temperature": 0.1
-  },
-  "prompt_template": "Extract key information from this page.",
-  "output_schema": {
-    "type": "object",
-    "properties": {
-      "title": {"type": "string"}
-    }
-  },
-  "deduplication_enabled": true,
-  "fallback_download_enabled": true,
-  "fallback_max_size_mb": 10
-}
-```
-
-**Important**: Include your LLM API key in `llm_params.api_key` for LLM extraction to work.
-
-## Configuration Options
+## Configuration Reference
 
 ### Required Fields
 
-- `name`: Task name (string)
-- `urls`: List of URLs to crawl (array of strings)
+- **`name`**: Task name (string, 1-255 characters)
+- **`urls`**: List of URLs to crawl (array of strings, at least one)
 
 ### Optional Fields
 
-- `description`: Task description (string)
-- `crawl_config`: crawl4ai configuration (object)
-  - `verbose`: Enable verbose logging (boolean)
-  - `screenshot`: Capture screenshots (boolean)
-  - `pdf`: Generate PDFs (boolean)
-  - `js_code`: JavaScript to execute (string)
-  - `wait_for`: CSS selector to wait for (string)
-  - `css_selector`: CSS selector to extract (string)
-- `llm_provider`: LLM provider (openai, anthropic, etc.)
-- `llm_model`: Model name (gpt-4, claude-3-opus, etc.)
-- `llm_params`: LLM parameters (object)
-  - **Important**: Include `api_key` in llm_params for LLM extraction
-  - Example: `{"api_key": "sk-...", "temperature": 0.1}`
-- `prompt_template`: Extraction instruction (string)
-- `output_schema`: JSON Schema for output (object)
-- `deduplication_enabled`: Enable URL deduplication (boolean, default: true)
-- `only_after_date`: Filter by date (ISO datetime string)
-- `fallback_download_enabled`: Enable fallback downloads (boolean, default: true)
-- `fallback_max_size_mb`: Max download size in MB (integer, default: 10)
+For complete field descriptions, see [CONFIG.md](../CONFIG.md).
+
+Key fields:
+- `crawl_config` - crawl4ai settings (JS, selectors, screenshots)
+- `llm_provider` - LLM provider (openai, anthropic, etc.)
+- `llm_model` - Model name (deepseek-chat, gpt-4, etc.)
+- `llm_params` - LLM parameters (api_key, temperature, base_url)
+- `prompt_template` - Extraction instructions
+- `output_schema` - JSON Schema for output structure
+- `deduplication_enabled` - Skip already-crawled URLs (default: true)
+- `fallback_download_enabled` - Retry failed media downloads (default: true)
 
 ## Tips
 
-1. **Start Simple**: Begin with basic configuration and add LLM extraction later
-2. **Test Prompts**: Experiment with different prompt templates for best results
-3. **Schema Design**: Define clear JSON schemas for consistent extraction
-4. **Size Limits**: Adjust `fallback_max_size_mb` based on your needs
-5. **Deduplication**: Enable for regular recurring crawls
-6. **Screenshots**: Useful for visual verification but increases storage
+1. **Start with DeepSeek**: Recommended default for cost-effectiveness
+2. **Use Default LLM Config**: Set in `.env` to avoid repetition in tasks
+3. **Test Prompts**: Experiment with different prompts for best results
+4. **Define Clear Schemas**: Use JSON Schema for consistent extraction
+5. **Enable Deduplication**: For recurring crawls of same sites
+6. **Use Chinese Prompts**: For Chinese content, write prompts in Chinese
+7. **Leverage Templates**: Use reusable templates from `prompt_templates/`
+
+## Additional Documentation
+
+- **[CONFIG.md](../CONFIG.md)** - Complete configuration guide
+- **[QUICKSTART.md](../QUICKSTART.md)** - Get started in 5 minutes
+- **[ARCHITECTURE.md](../ARCHITECTURE.md)** - System architecture
+- **[prompt_templates/README.md](../prompt_templates/README.md)** - Reusable templates
