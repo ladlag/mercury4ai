@@ -206,7 +206,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                 json.dumps(error_log, indent=2, default=str).encode('utf-8'),
                 'application/json'
             )
-            logger.info(f"Saved error log with {len(error_details)} errors to {error_log_path}")
+            logger.info(f"Saved error log for run {run_id} with {len(error_details)} errors")
         
         # Update run with results
         today = datetime.utcnow().strftime('%Y-%m-%d')

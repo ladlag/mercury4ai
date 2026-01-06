@@ -116,6 +116,8 @@ async def get_run_logs(
         manifest_url = minio_client.get_presigned_url(run.manifest_path)
     
     # Generate error log URL if errors occurred
+    # Note: error_log.json is only created when error_details exists,
+    # which happens whenever urls_failed is incremented in the worker
     error_log_url = None
     if run.urls_failed > 0:
         error_log_path = generate_minio_path(run.id, 'logs', 'error_log.json')
