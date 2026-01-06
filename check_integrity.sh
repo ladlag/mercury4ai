@@ -305,6 +305,9 @@ if command -v python3 &> /dev/null; then
                 print_success "YAML 语法正确: $file"
             else
                 print_error "YAML 语法错误: $file"
+                # Show detailed error for debugging (only first 3 lines to keep output clean)
+                echo "  错误详情:"
+                python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>&1 | head -3 | sed 's/^/    /'
             fi
         fi
     done

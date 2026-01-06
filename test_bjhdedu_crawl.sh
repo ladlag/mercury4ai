@@ -117,10 +117,18 @@ fi
 # 验证 YAML 文件语法
 print_info "验证 YAML 任务文件..."
 if $HAS_PYTHON; then
-    if python3 -c "import yaml; yaml.safe_load(open('examples/task_bjhdedu_list_crawl.yaml'))" 2>/dev/null; then
+    YAML_ERROR=0
+    # Test the main task file
+    if ! python3 -c "import yaml; yaml.safe_load(open('examples/task_bjhdedu_list_crawl.yaml'))" 2>/dev/null; then
+        print_error "YAML 文件语法错误: examples/task_bjhdedu_list_crawl.yaml"
+        # Show detailed error for debugging
+        python3 -c "import yaml; yaml.safe_load(open('examples/task_bjhdedu_list_crawl.yaml'))" 2>&1 | head -5
+        YAML_ERROR=1
+    fi
+    
+    if [ $YAML_ERROR -eq 0 ]; then
         print_success "YAML 文件语法正确"
     else
-        print_error "YAML 文件语法错误"
         exit 1
     fi
 else
