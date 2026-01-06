@@ -78,6 +78,8 @@ class Settings(BaseSettings):
         
         if self.DEFAULT_LLM_API_KEY:
             params['api_key'] = self.DEFAULT_LLM_API_KEY
+        if self.DEFAULT_LLM_BASE_URL:
+            params['base_url'] = self.DEFAULT_LLM_BASE_URL
         if self.DEFAULT_LLM_TEMPERATURE is not None:
             params['temperature'] = self.DEFAULT_LLM_TEMPERATURE
         if self.DEFAULT_LLM_MAX_TOKENS is not None:

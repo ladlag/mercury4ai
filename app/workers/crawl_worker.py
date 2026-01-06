@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from pathlib import Path
 import tempfile
 import uuid
@@ -10,13 +10,14 @@ import uuid
 from app.core.database import SessionLocal
 from app.core.minio_client import minio_client
 from app.core.config import settings
+from app.models import CrawlTask
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
 
 logger = logging.getLogger(__name__)
 
 
-def merge_llm_config(task) -> Dict[str, Any]:
+def merge_llm_config(task: CrawlTask) -> Optional[Dict[str, Any]]:
     """
     Merge task-specific LLM config with default config from settings.
     Task-specific config takes precedence over defaults.
