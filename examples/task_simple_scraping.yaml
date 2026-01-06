@@ -1,0 +1,22 @@
+name: Simple Web Scraping (No LLM)
+description: Basic web scraping without LLM extraction
+urls:
+  - https://example.com/page1
+  - https://example.com/page2
+
+crawl_config:
+  verbose: true
+  screenshot: false
+  css_selector: "article"
+
+# No LLM configuration - just extract markdown and HTML
+llm_provider: null
+llm_model: null
+llm_params: null
+prompt_template: null
+output_schema: null
+
+deduplication_enabled: true
+only_after_date: null
+fallback_download_enabled: true
+fallback_max_size_mb: 10

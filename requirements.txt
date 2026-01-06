@@ -1,0 +1,29 @@
+# Core Framework
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.10.0
+pydantic-settings==2.6.0
+
+# Database
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+alembic==1.14.0
+
+# Task Queue
+rq==2.0.0
+redis==5.2.0
+
+# Storage
+minio==7.2.10
+
+# Crawling
+crawl4ai>=0.7.8
+
+# API & Security
+python-multipart==0.0.20
+pyyaml==6.0.2
+python-jose[cryptography]==3.3.0
+
+# Utilities
+httpx==0.27.2
+python-dateutil==2.9.0
