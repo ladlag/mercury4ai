@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker, Session
 from app.core.config import settings
 from app.models import Base
@@ -41,9 +41,11 @@ def check_db_connection() -> bool:
     """Check if database is accessible"""
     try:
         db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
-        return True
+        try:
+            db.execute(text("SELECT 1"))
+            return True
+        finally:
+            db.close()
     except Exception as e:
         logger.error(f"Database connection check failed: {e}")
         return False
