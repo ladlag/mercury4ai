@@ -1,0 +1,18 @@
+Please extract the following information from this research paper:
+- Title
+- Authors (list of names)
+- Abstract
+- Publication date
+- Journal/Conference name
+- DOI (if available)
+- Keywords
+- Main findings/conclusions
+
+Data cleaning requirements:
+1. Format dates as YYYY-MM-DD
+2. Authors should be a list of full names
+3. Clean up abstract: remove line breaks, extra spaces
+4. Extract only the most important 3-5 keywords
+5. Summarize main findings in 2-3 sentences
+
+Return the result in JSON format.

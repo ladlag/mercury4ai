@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Article title"
+    },
+    "author": {
+      "type": "string",
+      "description": "Author name, 'Unknown' if not available"
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Publication date (YYYY-MM-DD format)"
+    },
+    "content": {
+      "type": "string",
+      "description": "Main article content, cleaned and HTML tags removed"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of keywords"
+    }
+  },
+  "required": ["title", "content"]
+}

@@ -39,8 +39,9 @@ class Settings(BaseSettings):
     FALLBACK_DOWNLOAD_MAX_SIZE_MB: int = 10
     
     # LLM Configuration (Optional defaults)
+    # DeepSeek is recommended as default for cost-effectiveness and Chinese language support
     DEFAULT_LLM_PROVIDER: Optional[str] = "openai"
-    DEFAULT_LLM_MODEL: Optional[str] = "gpt-4"
+    DEFAULT_LLM_MODEL: Optional[str] = "deepseek-chat"
     DEFAULT_LLM_API_KEY: Optional[str] = None
     DEFAULT_LLM_BASE_URL: Optional[str] = None
     DEFAULT_LLM_TEMPERATURE: Optional[float] = None

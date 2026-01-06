@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "产品名称"
+    },
+    "brand": {
+      "type": "string",
+      "description": "品牌"
+    },
+    "price": {
+      "type": "string",
+      "description": "价格，包含货币符号 (如 ¥1,234.56)"
+    },
+    "description": {
+      "type": "string",
+      "description": "产品描述"
+    },
+    "features": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "主要特性列表"
+    },
+    "specifications": {
+      "type": "object",
+      "description": "规格参数，如尺寸、重量等",
+      "additionalProperties": true
+    },
+    "stock_status": {
+      "type": "string",
+      "enum": ["有货", "缺货", "预订", "未知"],
+      "description": "库存状态"
+    }
+  },
+  "required": ["name", "price"]
+}

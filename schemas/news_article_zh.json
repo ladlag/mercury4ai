@@ -1,0 +1,30 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "文章标题"
+    },
+    "author": {
+      "type": "string",
+      "description": "作者姓名，如未知则为'未知'"
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date",
+      "description": "发布日期 (YYYY-MM-DD格式)"
+    },
+    "content": {
+      "type": "string",
+      "description": "文章主要内容，已清洗移除HTML标签"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "关键词列表"
+    }
+  },
+  "required": ["title", "content"]
+}
