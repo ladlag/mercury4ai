@@ -163,10 +163,18 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         
         # Generate run manifest and resource index
         manifest = generate_run_manifest(
-            run_id, task, urls_crawled, urls_failed, documents_created, 
+            run_id=run_id,
+            task=task,
+            urls_crawled=urls_crawled,
+            urls_failed=urls_failed,
+            documents_created=documents_created,
             error_details=error_details
         )
-        resource_index = generate_resource_index(db, run_id, has_errors=bool(error_details))
+        resource_index = generate_resource_index(
+            db=db,
+            run_id=run_id,
+            has_errors=bool(error_details)
+        )
         
         # Save manifest and index to MinIO
         manifest_path = generate_minio_path(run_id, 'logs', 'run_manifest.json')
