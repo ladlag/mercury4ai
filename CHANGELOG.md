@@ -11,6 +11,12 @@
   - `/api/runs/{run_id}/logs` endpoint returns `error_log_url` for easy access
   - Enables debugging of crawl failures without accessing container logs
 
+### Fixed
+- **crawl4ai 0.7.8 Compatibility**: 
+  - Removed explicit `verbose` parameter from crawler.arun() calls
+  - Fixes "got multiple values for keyword argument 'verbose'" error
+  - Crawls now work properly with crawl4ai 0.7.8
+
 - **CONFIG.md**: Comprehensive 500+ line configuration guide covering all options
   - Environment variables reference table
   - Task configuration details
