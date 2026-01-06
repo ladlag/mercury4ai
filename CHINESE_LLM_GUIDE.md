@@ -247,6 +247,28 @@ js_code: |
 
 A: 理论上支持所有兼容 OpenAI API 格式的模型。如需添加其他模型，可以修改 `app/services/crawler_service.py` 中的 `CHINESE_LLM_PROVIDERS` 配置。
 
+**添加新提供商的步骤：**
+
+1. 在 `CHINESE_LLM_PROVIDERS` 字典中添加配置：
+```python
+'your_provider': {
+    'model_prefix': 'openai/',  # 或 'provider_name/' 根据LiteLLM要求
+    'base_url': 'https://api.yourprovider.com/v1',  # 或 None 使用默认
+}
+```
+
+2. 配置说明：
+   - `model_prefix`: LiteLLM识别的模型前缀，如 `openai/` 表示OpenAI兼容
+   - `base_url`: API基础URL，使用OpenAI兼容格式的提供商需要设置
+
+3. 使用示例：
+```yaml
+llm_provider: "your_provider"
+llm_model: "your-model-name"
+llm_params:
+  api_key: "your-api-key"
+```
+
 ## 技术支持
 
 遇到问题？请提交 Issue: https://github.com/ladlag/mercury4ai/issues

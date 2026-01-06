@@ -64,7 +64,6 @@ Successfully implemented support for Chinese LLM providers (Deepseek, Qwen, ERNI
 'deepseek': {
     'model_prefix': 'deepseek/',
     'base_url': None,
-    'env_key': 'DEEPSEEK_API_KEY',
 }
 ```
 
@@ -73,7 +72,6 @@ Successfully implemented support for Chinese LLM providers (Deepseek, Qwen, ERNI
 'qwen': {
     'model_prefix': 'openai/',
     'base_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    'env_key': 'QWEN_API_KEY',
 }
 ```
 
@@ -82,7 +80,6 @@ Successfully implemented support for Chinese LLM providers (Deepseek, Qwen, ERNI
 'ernie': {
     'model_prefix': 'openai/',
     'base_url': 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat',
-    'env_key': 'ERNIE_API_KEY',
 }
 ```
 

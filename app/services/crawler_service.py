@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 
 
 # Provider configurations for Chinese LLM providers
-# Note: env_key is reserved for future environment variable fallback support
 CHINESE_LLM_PROVIDERS = {
     'qwen': {
         'model_prefix': 'openai/',
