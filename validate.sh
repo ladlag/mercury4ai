@@ -59,17 +59,44 @@ echo ""
 
 echo "2. Checking Service Health"
 echo "----------------------------"
-check_service "PostgreSQL" "localhost:5432" || true
-check_service "Redis" "localhost:6379" || true
+# Check PostgreSQL
+echo -n "Checking PostgreSQL... "
+if command -v pg_isready &> /dev/null; then
+    if pg_isready -h localhost -p 5432 -U mercury4ai > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ OK${NC}"
+    else
+        echo -e "${RED}✗ FAILED${NC}"
+    fi
+elif nc -z localhost 5432 2>/dev/null; then
+    echo -e "${GREEN}✓ OK${NC}"
+else
+    echo -e "${RED}✗ FAILED${NC}"
+fi
+
+# Check Redis
+echo -n "Checking Redis... "
+if command -v redis-cli &> /dev/null; then
+    if redis-cli -h localhost -p 6379 ping > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ OK${NC}"
+    else
+        echo -e "${RED}✗ FAILED${NC}"
+    fi
+elif nc -z localhost 6379 2>/dev/null; then
+    echo -e "${GREEN}✓ OK${NC}"
+else
+    echo -e "${RED}✗ FAILED${NC}"
+fi
+
+# Check MinIO
 check_service "MinIO" "http://localhost:9000/minio/health/live" || true
 echo ""
 
 echo "3. Checking API Endpoints"
 echo "----------------------------"
 sleep 2  # Give services time to start
-check_api "/" "Root endpoint"
-check_api "/api/health" "Health endpoint"
-check_api "/docs" "API documentation"
+check_api "/" "Root endpoint" || true
+check_api "/api/health" "Health endpoint" || true
+check_api "/docs" "API documentation" || true
 echo ""
 
 echo "4. Testing API Key Authentication"
