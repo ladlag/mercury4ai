@@ -1,0 +1,54 @@
+name: Chinese LLM Example - Qwen (通义千问)
+description: Example using Alibaba Qwen/Tongyi Qianwen for extraction
+urls:
+  - https://example.com/news1
+  - https://example.com/news2
+
+crawl_config:
+  verbose: true
+  screenshot: false
+
+llm_provider: openai
+llm_model: qwen-turbo
+llm_params:
+  api_key: "your-dashscope-api-key-here"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  temperature: 0.1
+  max_tokens: 2000
+
+prompt_template: |
+  请从这篇文章中提取以下信息：
+  - 标题
+  - 作者
+  - 发布日期
+  - 主要内容
+  - 摘要
+  
+  以JSON格式返回结果。
+
+output_schema:
+  type: object
+  properties:
+    title:
+      type: string
+      description: 文章标题
+    author:
+      type: string
+      description: 作者姓名
+    published_date:
+      type: string
+      description: 发布日期
+    content:
+      type: string
+      description: 主要内容
+    summary:
+      type: string
+      description: 文章摘要
+  required:
+    - title
+    - content
+
+deduplication_enabled: true
+only_after_date: null
+fallback_download_enabled: true
+fallback_max_size_mb: 10

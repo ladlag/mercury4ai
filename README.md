@@ -57,6 +57,15 @@ cp .env.example .env
 - The default `API_KEY` is `your-secure-api-key-change-this`. Change this in production by setting the `API_KEY` environment variable or creating a `.env` file.
 - If you don't create a `.env` file, the application will use defaults from `.env.example`. This is suitable for development and testing.
 
+**For LLM-powered extraction**, set default LLM configuration in your `.env` file:
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=gpt-4
+DEFAULT_LLM_API_KEY=sk-your-api-key-here
+DEFAULT_LLM_TEMPERATURE=0.1
+```
+This allows you to create tasks without repeating LLM configuration in every task.
+
 ### 3. Start Services
 
 ```bash
@@ -188,6 +197,22 @@ curl http://localhost:8000/api/runs/{run_id}/logs \
 
 Returns MinIO paths and presigned URLs for downloading artifacts.
 
+### Example Task Configurations
+
+See the `examples/` directory for sample task configurations:
+
+**Basic Examples:**
+- `task_news_extraction.json` - Full LLM configuration specified in task
+- `task_product_extraction.yaml` - Full LLM configuration in YAML format
+- `task_with_default_llm.yaml` - Uses default LLM config from environment (recommended)
+- `task_partial_llm_override.json` - Partial override (uses default API key, custom model/temperature)
+- `task_simple_scraping.yaml` - No LLM extraction, basic scraping only
+
+**Chinese LLM Examples (国产大模型):**
+- `task_chinese_llm_deepseek.json` - DeepSeek configuration example
+- `task_chinese_llm_qwen.yaml` - Qwen/Tongyi Qianwen configuration
+- `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling with Chinese LLM
+
 ### Export/Import Tasks
 
 Export a task to YAML:
@@ -256,7 +281,32 @@ See `.env.example` for all configuration options:
 - `REDIS_*`: Redis configuration
 - `MINIO_*`: MinIO configuration
 - `FALLBACK_DOWNLOAD_*`: Fallback download settings
-- `DEFAULT_LLM_*`: Default LLM settings
+- `DEFAULT_LLM_*`: Default LLM settings (see below)
+
+### Default LLM Configuration
+
+You can set default LLM configuration in your environment variables to avoid repeating the same settings in every task:
+
+- `DEFAULT_LLM_PROVIDER`: Default LLM provider (e.g., "openai", "anthropic")
+- `DEFAULT_LLM_MODEL`: Default model name (e.g., "gpt-4", "gpt-3.5-turbo")
+- `DEFAULT_LLM_API_KEY`: Default API key for the LLM provider
+- `DEFAULT_LLM_BASE_URL`: Optional base URL for custom LLM endpoints
+- `DEFAULT_LLM_TEMPERATURE`: Optional default temperature setting
+- `DEFAULT_LLM_MAX_TOKENS`: Optional default max tokens setting
+
+**How it works:**
+- If a task doesn't specify LLM configuration, the defaults from environment variables are used
+- If a task specifies partial LLM configuration, it's merged with defaults (task values take precedence)
+- This makes it much easier to manage multiple tasks without repeating API keys
+
+**Example `.env` configuration:**
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=gpt-4
+DEFAULT_LLM_API_KEY=sk-your-api-key-here
+DEFAULT_LLM_TEMPERATURE=0.1
+DEFAULT_LLM_MAX_TOKENS=2000
+```
 
 ### Task Configuration
 
@@ -264,6 +314,11 @@ Each task supports:
 
 - **URLs**: List of URLs to crawl
 - **Crawl Config**: crawl4ai-specific settings (JS code, CSS selectors, etc.)
+- **LLM Config**: Provider, model, and parameters for extraction (optional - uses defaults if not specified)
+  - `llm_provider`: LLM provider (uses `DEFAULT_LLM_PROVIDER` if not specified)
+  - `llm_model`: Model name (uses `DEFAULT_LLM_MODEL` if not specified)
+  - `llm_params`: Additional parameters like API key, temperature, etc. (merged with defaults)
+  - Supported providers: openai, anthropic, groq, etc.
 - **LLM Config**: Provider, model, and parameters for extraction
   - **Important**: Include your LLM API key in `llm_params`: `{"api_key": "sk-...", "temperature": 0.1}`
   - Supported providers: openai, anthropic, groq, deepseek, qwen, ernie, etc.
@@ -276,25 +331,17 @@ Each task supports:
 
 ### LLM Extraction
 
-To use LLM-powered structured extraction:
+To use LLM-powered structured extraction, you have three options:
 
-1. Set `llm_provider` (e.g., "openai", "anthropic", "deepseek", "qwen", "ernie")
-2. Set `llm_model` (e.g., "gpt-4", "claude-3-opus", "deepseek-chat", "qwen-plus", "ernie-bot")
-3. **Include API key in `llm_params`**: `{"api_key": "your-key-here", "temperature": 0.1}`
-4. Define `prompt_template` with extraction instructions
-5. Optionally define `output_schema` for structured JSON output
+#### Option 1: Use Default Configuration (Recommended)
 
-**Example with OpenAI:**
+Set default LLM config in `.env` and only specify prompt and schema in tasks:
+
 ```json
 {
-  "llm_provider": "openai",
-  "llm_model": "gpt-4",
-  "llm_params": {
-    "api_key": "sk-...",
-    "temperature": 0.1,
-    "max_tokens": 2000
-  },
-  "prompt_template": "Extract the title and main content...",
+  "name": "Simple Task",
+  "urls": ["https://example.com"],
+  "prompt_template": "Extract the title and content...",
   "output_schema": {
     "type": "object",
     "properties": {
@@ -305,6 +352,159 @@ To use LLM-powered structured extraction:
 }
 ```
 
+#### Option 2: Partial Override
+
+Use defaults but override specific parameters:
+1. Set `llm_provider` (e.g., "openai", "anthropic", "deepseek", "qwen", "ernie")
+2. Set `llm_model` (e.g., "gpt-4", "claude-3-opus", "deepseek-chat", "qwen-plus", "ernie-bot")
+3. **Include API key in `llm_params`**: `{"api_key": "your-key-here", "temperature": 0.1}`
+4. Define `prompt_template` with extraction instructions
+5. Optionally define `output_schema` for structured JSON output
+
+```json
+{
+  "name": "Custom Temperature Task",
+  "urls": ["https://example.com"],
+  "llm_model": "gpt-3.5-turbo",
+  "llm_params": {
+    "temperature": 0.3
+  },
+  "prompt_template": "Extract the title and content..."
+}
+```
+
+#### Option 3: Full Configuration
+
+Specify complete LLM configuration in the task (original method):
+
+```json
+{
+  "name": "Fully Configured Task",
+  "urls": ["https://example.com"],
+  "llm_provider": "openai",
+  "llm_model": "gpt-4",
+  "llm_params": {
+    "api_key": "sk-...",
+    "temperature": 0.1,
+    "max_tokens": 2000
+  },
+  "prompt_template": "Extract the title and content...",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string"},
+      "content": {"type": "string"}
+    }
+  }
+}
+```
+
+## Chinese Large Language Model Support (国产大模型支持)
+
+Mercury4AI fully supports Chinese domestic LLMs including **DeepSeek**, **Qwen (通义千问)**, and **Wenxin Yiyan (文心一言)** through OpenAI-compatible API interfaces.
+
+### Supported Chinese LLM Providers
+
+#### 1. DeepSeek (深度求索)
+
+**Configuration Example:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "your-deepseek-api-key",
+    "base_url": "https://api.deepseek.com",
+    "temperature": 0.1
+  }
+}
+```
+
+**Or set as defaults in `.env`:**
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_API_KEY=your-deepseek-api-key
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+DEFAULT_LLM_TEMPERATURE=0.1
+```
+
+#### 2. Qwen / Tongyi Qianwen (通义千问)
+
+**Configuration Example:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "qwen-turbo",
+  "llm_params": {
+    "api_key": "your-dashscope-api-key",
+    "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "temperature": 0.1
+  }
+}
+```
+
+**Available Models:**
+- `qwen-turbo` - Fast, cost-effective
+- `qwen-plus` - Balanced performance
+- `qwen-max` - Best quality
+
+#### 3. Wenxin Yiyan / ERNIE Bot (文心一言)
+
+**Configuration Example:**
+```json
+{
+  "llm_provider": "openai",
+  "llm_model": "ernie-bot-turbo",
+  "llm_params": {
+    "api_key": "your-baidu-api-key",
+    "base_url": "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop",
+    "temperature": 0.1
+  }
+}
+```
+
+### Example Task Configurations
+
+See the `examples/` directory for complete examples:
+- `task_chinese_llm_deepseek.json` - DeepSeek configuration
+- `task_chinese_llm_qwen.yaml` - Qwen configuration  
+- `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling example with Chinese LLM
+
+### Chinese Language Prompts
+
+You can write prompts in Chinese for better extraction quality:
+
+```yaml
+prompt_template: |
+  请从这篇文章中提取以下信息：
+  - 标题
+  - 作者
+  - 发布日期
+  - 主要内容
+  
+  以JSON格式返回结果。
+```
+
+### Data Cleaning with Chinese LLMs
+
+Both data extraction and cleaning benefit from Chinese LLMs:
+
+1. **Primary Extraction**: Use Chinese LLM to extract structured data
+2. **Post-Processing**: The extracted JSON data is automatically cleaned
+3. **Custom Cleaning**: Add additional cleaning logic in `prompt_template`
+
+**Example with cleaning instructions:**
+```yaml
+prompt_template: |
+  请提取文章信息，并进行以下数据清洗：
+  1. 移除所有HTML标签
+  2. 统一日期格式为 YYYY-MM-DD
+  3. 删除多余的空格和换行
+  4. 规范化标点符号
+  
+  返回清洗后的JSON数据。
+```
 **Example with Deepseek (Chinese LLM):**
 ```json
 {

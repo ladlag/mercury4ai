@@ -1,0 +1,94 @@
+name: Beijing Education List Page Crawl
+description: 爬取北京教育列表页 https://www.bjhdedu.cn/zxfw/fwzt/szx/ 的示例配置
+urls:
+  - https://www.bjhdedu.cn/zxfw/fwzt/szx/
+
+crawl_config:
+  verbose: true
+  screenshot: false
+  # 等待页面加载完成
+  wait_for: ".content"
+  # 可选：使用CSS选择器提取特定内容
+  css_selector: ".list-item, .article-list, .content-list"
+  # 可选：如果需要执行JavaScript来加载动态内容
+  js_code: |
+    // 等待页面完全加载
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 如果有"加载更多"按钮，可以点击它
+    const loadMoreBtn = document.querySelector('.load-more, .more-btn');
+    if (loadMoreBtn) loadMoreBtn.click();
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+# 使用国产大模型（可选择DeepSeek、Qwen或文心一言）
+# 方案1：使用DeepSeek
+llm_provider: openai
+llm_model: deepseek-chat
+llm_params:
+  api_key: "your-deepseek-api-key"
+  base_url: "https://api.deepseek.com"
+  temperature: 0.1
+  max_tokens: 4000
+
+# 方案2：使用通义千问 Qwen（取消注释以使用）
+# llm_provider: openai
+# llm_model: qwen-turbo
+# llm_params:
+#   api_key: "your-dashscope-api-key"
+#   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+#   temperature: 0.1
+
+# 方案3：使用文心一言（取消注释以使用）
+# llm_provider: openai
+# llm_model: ernie-bot-turbo
+# llm_params:
+#   api_key: "your-baidu-api-key"
+#   base_url: "https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop"
+#   temperature: 0.1
+
+prompt_template: |
+  请从这个教育服务列表页面中提取以下信息：
+  
+  1. 列表中的所有服务项目
+  2. 每个项目的标题
+  3. 每个项目的链接URL
+  4. 每个项目的描述或摘要
+  5. 发布日期（如果有）
+  
+  将结果组织成JSON数组格式，每个项目包含：title（标题）、url（链接）、description（描述）、date（日期）。
+
+output_schema:
+  type: object
+  properties:
+    page_title:
+      type: string
+      description: 页面标题
+    items:
+      type: array
+      description: 列表项数组
+      items:
+        type: object
+        properties:
+          title:
+            type: string
+            description: 服务项目标题
+          url:
+            type: string
+            description: 服务项目链接
+          description:
+            type: string
+            description: 服务项目描述
+          date:
+            type: string
+            description: 发布日期
+        required:
+          - title
+    total_count:
+      type: integer
+      description: 列表项总数
+  required:
+    - items
+
+deduplication_enabled: true
+only_after_date: null
+fallback_download_enabled: true
+fallback_max_size_mb: 10
