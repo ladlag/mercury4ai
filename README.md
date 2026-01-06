@@ -647,4 +647,5 @@ For issues and questions:
 - **[CONFIG.md](CONFIG.md)** - Complete configuration guide
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture
+- **[MIGRATION.md](MIGRATION.md)** - Upgrade guide from previous versions
 - **[prompt_templates/README.md](prompt_templates/README.md)** - Reusable templates
