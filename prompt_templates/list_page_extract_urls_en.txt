@@ -1,0 +1,16 @@
+Extract all items from this list page:
+
+Required information for each item:
+1. Title
+2. Detail page URL (must be complete absolute URL)
+3. Brief description or preview
+4. Publication date or update time (if available)
+
+Data cleaning requirements:
+1. URLs must be absolute paths (including https:// or http://)
+2. If URL is relative, convert to absolute path
+3. Remove HTML tags and extra spaces
+4. Standardize date format to YYYY-MM-DD
+5. Maintain the order as they appear on the page
+
+Return result in JSON format, ensure the result is valid JSON.

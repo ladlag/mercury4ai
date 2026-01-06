@@ -1,30 +1,94 @@
 # Task Configuration Examples
 
-This directory contains example task configurations in both JSON and YAML formats.
+This directory contains example task configurations demonstrating **balanced complexity** and **reusable templates**.
 
-For complete configuration documentation, see:
-- **[CONFIG.md](../CONFIG.md)** - Complete configuration guide
-- **[prompt_templates/README.md](../prompt_templates/README.md)** - Reusable templates
+## 📋 Example Categories
+
+### ✅ Recommended: Using Reusable Templates
+
+These examples show the **best practice** - using reusable prompt templates and schemas:
+
+- **`task_step1_list_page.yaml`** - Extract URLs from list page (uses `@prompt_templates/list_page_extract_urls.txt`)
+- **`task_step2_detail_pages.yaml`** - Extract details from detail pages (uses `@prompt_templates/detail_page_extract_full.txt`)
+- **`task_news_with_template.yaml`** - Chinese news extraction with template
+- **`task_product_with_template.yaml`** - Product extraction with template
+
+**Benefits:**
+- ✅ Prompts and schemas are reusable across multiple tasks
+- ✅ Clean, concise task configuration
+- ✅ Easy to maintain and update prompts centrally
+- ✅ Consistent extraction logic
+
+### 📚 Reference Examples (Inline Configuration)
+
+These examples show complete inline configuration for reference:
+
+- **`task_simple_scraping.yaml`** - Basic scraping without LLM
+- **`task_with_default_llm.yaml`** - Uses default LLM from `.env`
+- **`task_chinese_llm_deepseek.json`** - Full DeepSeek configuration
+- **`task_chinese_llm_qwen.yaml`** - Full Qwen configuration
+- **`task_news_extraction.json`** - Full inline news extraction
+- **`task_product_extraction.yaml`** - Full inline product extraction
+- **`task_research_paper.json`** - Research paper extraction
+- **`task_partial_llm_override.json`** - Partial LLM override
+- **`task_bjhdedu_list_crawl.yaml`** - Real-world list page example
 
 ## Quick Start
 
-Import any example task:
+### Using Reusable Templates (Recommended)
 
 ```bash
-# Import JSON task
-curl -X POST http://localhost:8000/api/tasks/import?format=json \
-  -H "X-API-Key: your-api-key" \
-  -H "Content-Type: text/plain" \
-  --data-binary @task_chinese_llm_deepseek.json
-
-# Import YAML task
+# Step 1: Import list page extraction task
 curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
   -H "X-API-Key: your-api-key" \
   -H "Content-Type: text/plain" \
-  --data-binary @task_simple_scraping.yaml
+  --data-binary @task_step1_list_page.yaml
+
+# Step 2: Run the task and get URLs from results
+# Step 3: Import detail page extraction task with those URLs
+curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: text/plain" \
+  --data-binary @task_step2_detail_pages.yaml
 ```
 
-## Examples
+## Configuration Complexity Balance
+
+### ❌ Too Simple (Not Recommended)
+```yaml
+name: "My Task"
+urls: ["https://example.com"]
+```
+Missing: LLM config, prompts, schemas
+
+### ❌ Too Complex (Not Recommended)
+```yaml
+name: "My Task"
+urls: ["https://example.com"]
+prompt_template: |
+  Very long prompt embedded here...
+  (200 lines)
+output_schema:
+  type: object
+  properties:
+    # 50 lines of schema...
+```
+Problem: Everything embedded, not reusable
+
+### ✅ Balanced (Recommended)
+```yaml
+name: "My Task"
+urls: ["https://example.com"]
+crawl_config:
+  verbose: true
+  wait_for: ".content"
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+deduplication_enabled: true
+```
+Perfect: Clean config, reusable templates
+
+## Examples Overview
 
 ### 1. Simple Web Scraping (`task_simple_scraping.yaml`)
 

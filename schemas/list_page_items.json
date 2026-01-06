@@ -1,0 +1,41 @@
+{
+  "type": "object",
+  "properties": {
+    "page_title": {
+      "type": "string",
+      "description": "列表页标题"
+    },
+    "items": {
+      "type": "array",
+      "description": "列表项数组",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string",
+            "description": "项目标题"
+          },
+          "url": {
+            "type": "string",
+            "description": "详情页URL（完整绝对路径）"
+          },
+          "description": {
+            "type": "string",
+            "description": "项目描述或预览"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "description": "发布或更新日期 (YYYY-MM-DD)"
+          }
+        },
+        "required": ["title", "url"]
+      }
+    },
+    "total_count": {
+      "type": "integer",
+      "description": "列表项总数"
+    }
+  },
+  "required": ["items"]
+}

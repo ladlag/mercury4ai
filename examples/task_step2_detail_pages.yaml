@@ -1,0 +1,24 @@
+# Step 2: Extract Details from Detail Pages
+# 使用Step 1提取的URLs来爬取详情页
+
+name: "提取详情页内容"
+description: "从详情页提取完整信息"
+
+# 这些URL应该从Step 1的结果中获取
+urls:
+  - https://example.com/detail/1
+  - https://example.com/detail/2
+  - https://example.com/detail/3
+
+crawl_config:
+  verbose: true
+  wait_for: ".content, .detail"
+
+# 使用可复用的提示词模板
+prompt_template: "@prompt_templates/detail_page_extract_full.txt"
+
+# 使用可复用的输出结构
+output_schema: "@schemas/detail_page_full.json"
+
+deduplication_enabled: true
+fallback_download_enabled: true

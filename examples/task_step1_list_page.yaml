@@ -1,0 +1,20 @@
+# Step 1: Extract URLs from List Page
+# 这个任务从列表页提取所有详情页的URL
+
+name: "提取列表页URLs"
+description: "从列表页提取详情页链接"
+
+urls:
+  - https://example.com/list  # 替换为实际的列表页URL
+
+crawl_config:
+  verbose: true
+  wait_for: ".list, .items"
+
+# 使用可复用的提示词模板
+prompt_template: "@prompt_templates/list_page_extract_urls.txt"
+
+# 使用可复用的输出结构
+output_schema: "@schemas/list_page_items.json"
+
+deduplication_enabled: true

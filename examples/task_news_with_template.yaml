@@ -1,0 +1,18 @@
+# 中文新闻提取 - 使用可复用模板
+# Chinese News Extraction - Using Reusable Templates
+
+name: "中文新闻提取"
+description: "使用DeepSeek和可复用模板提取中文新闻"
+
+urls:
+  - https://news.example.cn/article1
+  - https://news.example.cn/article2
+
+crawl_config:
+  verbose: true
+
+# 使用可复用的提示词和结构
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+
+deduplication_enabled: true

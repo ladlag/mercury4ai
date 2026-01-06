@@ -1,0 +1,21 @@
+# 产品信息提取 - 使用可复用模板
+# Product Information Extraction - Using Reusable Templates
+
+name: "产品信息提取"
+description: "使用可复用模板提取产品信息"
+
+urls:
+  - https://shop.example.com/product/123
+  - https://shop.example.com/product/456
+
+crawl_config:
+  verbose: true
+  wait_for: ".product-detail"
+
+# 使用可复用的提示词和结构
+prompt_template: "@prompt_templates/product_info_zh.txt"
+output_schema: "@schemas/product_info_zh.json"
+
+deduplication_enabled: true
+fallback_download_enabled: true
+fallback_max_size_mb: 10
