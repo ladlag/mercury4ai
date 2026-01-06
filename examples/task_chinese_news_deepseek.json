@@ -1,0 +1,57 @@
+{
+  "name": "Chinese News Extraction with Deepseek",
+  "description": "使用Deepseek大模型提取中文新闻文章的结构化数据 | NOTE: Replace the example.com URL with your target Chinese news URL before use",
+  "urls": [
+    "https://example.com/news/article1"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "screenshot": false,
+    "wait_for": "article"
+  },
+  "llm_provider": "deepseek",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "your-deepseek-api-key-here",
+    "temperature": 0.1,
+    "max_tokens": 4000
+  },
+  "prompt_template": "请从这篇文章中提取以下信息：\n- 标题\n- 作者\n- 发布时间\n- 正文内容\n- 关键词或标签\n- 摘要\n\n请以结构化的JSON格式返回。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string",
+        "description": "文章标题"
+      },
+      "author": {
+        "type": "string",
+        "description": "作者姓名"
+      },
+      "published_date": {
+        "type": "string",
+        "description": "发布时间（ISO格式）"
+      },
+      "content": {
+        "type": "string",
+        "description": "文章正文内容"
+      },
+      "keywords": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "关键词或标签"
+      },
+      "summary": {
+        "type": "string",
+        "description": "文章摘要"
+      }
+    },
+    "required": ["title", "content"]
+  },
+  "deduplication_enabled": true,
+  "only_after_date": null,
+  "fallback_download_enabled": true,
+  "fallback_max_size_mb": 10
+}

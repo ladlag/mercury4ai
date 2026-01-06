@@ -319,6 +319,10 @@ Each task supports:
   - `llm_model`: Model name (uses `DEFAULT_LLM_MODEL` if not specified)
   - `llm_params`: Additional parameters like API key, temperature, etc. (merged with defaults)
   - Supported providers: openai, anthropic, groq, etc.
+- **LLM Config**: Provider, model, and parameters for extraction
+  - **Important**: Include your LLM API key in `llm_params`: `{"api_key": "sk-...", "temperature": 0.1}`
+  - Supported providers: openai, anthropic, groq, deepseek, qwen, ernie, etc.
+  - **Chinese LLM Support**: Deepseek (深度求索), Qwen (通义千问), ERNIE (文心一言)
 - **Prompt Template**: Instruction for LLM extraction
 - **Output Schema**: JSON Schema for structured output
 - **Deduplication**: Enable/disable URL deduplication
@@ -351,6 +355,11 @@ Set default LLM config in `.env` and only specify prompt and schema in tasks:
 #### Option 2: Partial Override
 
 Use defaults but override specific parameters:
+1. Set `llm_provider` (e.g., "openai", "anthropic", "deepseek", "qwen", "ernie")
+2. Set `llm_model` (e.g., "gpt-4", "claude-3-opus", "deepseek-chat", "qwen-plus", "ernie-bot")
+3. **Include API key in `llm_params`**: `{"api_key": "your-key-here", "temperature": 0.1}`
+4. Define `prompt_template` with extraction instructions
+5. Optionally define `output_schema` for structured JSON output
 
 ```json
 {
@@ -496,6 +505,41 @@ prompt_template: |
   
   返回清洗后的JSON数据。
 ```
+**Example with Deepseek (Chinese LLM):**
+```json
+{
+  "llm_provider": "deepseek",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "your-deepseek-api-key",
+    "temperature": 0.1,
+    "max_tokens": 4000
+  },
+  "prompt_template": "请提取文章的标题和主要内容...",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string"},
+      "content": {"type": "string"}
+    }
+  }
+}
+```
+
+**Example with Qwen / 通义千问:**
+```json
+{
+  "llm_provider": "qwen",
+  "llm_model": "qwen-plus",
+  "llm_params": {
+    "api_key": "your-qwen-api-key",
+    "temperature": 0.1
+  },
+  "prompt_template": "提取页面中的结构化信息..."
+}
+```
+
+See `examples/` directory for more examples including Chinese LLM configurations.
 
 ## Development
 

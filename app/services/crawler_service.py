@@ -13,6 +13,23 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+# Provider configurations for Chinese LLM providers
+CHINESE_LLM_PROVIDERS = {
+    'qwen': {
+        'model_prefix': 'openai/',
+        'base_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    },
+    'ernie': {
+        'model_prefix': 'openai/',
+        'base_url': 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat',
+    },
+    'deepseek': {
+        'model_prefix': 'deepseek/',
+        'base_url': None,  # Uses default Deepseek endpoint
+    },
+}
+
+
 class CrawlerService:
     def __init__(self):
         self.crawler = None
@@ -70,13 +87,46 @@ class CrawlerService:
             
             # Configure LLM extraction if provided
             if llm_config and prompt_template:
-                extraction_strategy = LLMExtractionStrategy(
-                    provider=llm_config.get('provider', 'openai'),
-                    api_token=llm_config.get('api_key'),
-                    instruction=prompt_template,
-                    schema=output_schema,
-                    **llm_config.get('params', {})
-                )
+                provider = llm_config.get('provider', 'openai')
+                model = llm_config.get('model', 'gpt-4')
+                params = llm_config.get('params', {})
+                
+                # Extract API key from params (it's stored in task.llm_params)
+                api_key = params.get('api_key')
+                
+                # Handle Chinese LLM providers
+                provider_lower = provider.lower()
+                if provider_lower in CHINESE_LLM_PROVIDERS:
+                    provider_config = CHINESE_LLM_PROVIDERS[provider_lower]
+                    
+                    # Set model with proper prefix
+                    if provider_config['model_prefix']:
+                        full_model = f"{provider_config['model_prefix']}{model}"
+                    else:
+                        full_model = model
+                    
+                    # Set base_url if configured
+                    if provider_config['base_url']:
+                        params['base_url'] = provider_config['base_url']
+                    
+                    # Use the full model name as provider for LiteLLM
+                    extraction_strategy = LLMExtractionStrategy(
+                        provider=full_model,
+                        api_token=api_key,
+                        instruction=prompt_template,
+                        schema=output_schema,
+                        **params
+                    )
+                else:
+                    # Standard provider (openai, anthropic, etc.)
+                    extraction_strategy = LLMExtractionStrategy(
+                        provider=provider,
+                        api_token=api_key,
+                        instruction=prompt_template,
+                        schema=output_schema,
+                        **params
+                    )
+                
                 crawl_params['extraction_strategy'] = extraction_strategy
             
             # Execute crawl
