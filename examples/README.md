@@ -114,6 +114,117 @@ Real-world example of list page crawling with Chinese LLM.
 
 For detailed configuration, see [CONFIG.md](../CONFIG.md#chinese-llm-setup).
 
+## Common Crawling Patterns
+
+### Pattern 1: List Page → Detail Pages (Two-Step Workflow)
+
+**Most common pattern**: Extract URLs from list page, then crawl detail pages.
+
+#### Step 1: Extract URLs from List Page
+
+```json
+{
+  "name": "Step 1: Extract Product URLs",
+  "urls": ["https://shop.example.com/products"],
+  "prompt_template": "提取所有产品的标题和详情页URL",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "products": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {"type": "string"},
+            "url": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+#### Step 2: Crawl Detail Pages
+
+After getting results from Step 1, create a new task with the extracted URLs:
+
+```json
+{
+  "name": "Step 2: Extract Product Details",
+  "urls": [
+    "https://shop.example.com/product/1",
+    "https://shop.example.com/product/2",
+    "https://shop.example.com/product/3"
+  ],
+  "prompt_template": "提取产品的完整信息：名称、价格、描述、规格",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "name": {"type": "string"},
+      "price": {"type": "string"},
+      "description": {"type": "string"},
+      "specs": {"type": "object"}
+    }
+  }
+}
+```
+
+**See**: `task_bjhdedu_list_crawl.yaml` for real-world example
+
+### Pattern 2: Paginated Lists
+
+Crawl multiple pages of a paginated list:
+
+```json
+{
+  "name": "Multi-Page News List",
+  "urls": [
+    "https://news.example.com?page=1",
+    "https://news.example.com?page=2",
+    "https://news.example.com?page=3"
+  ],
+  "deduplication_enabled": true
+}
+```
+
+### Pattern 3: Dynamic Content (Infinite Scroll)
+
+Handle pages with "Load More" or infinite scroll:
+
+```json
+{
+  "name": "Infinite Scroll Content",
+  "urls": ["https://example.com/infinite"],
+  "crawl_config": {
+    "wait_for": ".content-list",
+    "js_code": |
+      for (let i = 0; i < 3; i++) {
+        window.scrollTo(0, document.body.scrollHeight);
+        await new Promise(r => setTimeout(r, 2000));
+      }
+  }
+}
+```
+
+### Pattern 4: Category-Based Crawling
+
+Crawl multiple categories or sections:
+
+```json
+{
+  "name": "Multi-Category Crawl",
+  "urls": [
+    "https://site.com/category/tech",
+    "https://site.com/category/business",
+    "https://site.com/category/sports"
+  ],
+  "deduplication_enabled": true
+}
+```
+
+**For complete examples**, see [CONFIG.md - Common Crawling Patterns](../CONFIG.md#common-crawling-patterns)
+
 ## Creating Your Own Tasks
 
 ## Configuration Reference

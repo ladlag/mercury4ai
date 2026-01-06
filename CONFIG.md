@@ -563,6 +563,276 @@ Create schema files in `schemas/` directory:
 }
 ```
 
+## Common Crawling Patterns
+
+### Pattern 1: List Page + Detail Pages
+
+**Scenario**: Extract data from a list page, then crawl each detail page.
+
+This is the most common web scraping pattern, requiring two separate tasks:
+
+#### Step 1: Crawl List Page
+
+Extract URLs from the list page:
+
+```json
+{
+  "name": "Extract Product List URLs",
+  "description": "从列表页提取所有产品详情页链接",
+  "urls": ["https://shop.example.com/products"],
+  "crawl_config": {
+    "verbose": true,
+    "wait_for": ".product-list",
+    "js_code": "window.scrollTo(0, document.body.scrollHeight);"
+  },
+  "llm_provider": "openai",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "your-deepseek-api-key",
+    "base_url": "https://api.deepseek.com",
+    "temperature": 0.1
+  },
+  "prompt_template": "请提取页面中所有产品的链接URL和标题。返回JSON数组格式。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {"type": "string", "description": "产品标题"},
+            "url": {"type": "string", "description": "产品详情页URL"},
+            "preview": {"type": "string", "description": "产品简介"}
+          },
+          "required": ["title", "url"]
+        }
+      }
+    }
+  }
+}
+```
+
+#### Step 2: Crawl Detail Pages
+
+Use the extracted URLs to crawl detail pages:
+
+```json
+{
+  "name": "Extract Product Details",
+  "description": "从详情页提取完整产品信息",
+  "urls": [
+    "https://shop.example.com/product/1",
+    "https://shop.example.com/product/2",
+    "https://shop.example.com/product/3"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "wait_for": ".product-detail"
+  },
+  "prompt_template": "请提取产品的完整信息：名称、价格、描述、规格参数等。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "name": {"type": "string", "description": "产品名称"},
+      "price": {"type": "string", "description": "价格"},
+      "description": {"type": "string", "description": "详细描述"},
+      "specifications": {
+        "type": "object",
+        "description": "规格参数"
+      },
+      "images": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "产品图片URL列表"
+      }
+    }
+  },
+  "deduplication_enabled": true,
+  "fallback_download_enabled": true
+}
+```
+
+**Workflow**:
+1. Create and run Task 1 (list page)
+2. Get results from Task 1 via API: `GET /api/runs/{run_id}/result`
+3. Extract URLs from the structured data
+4. Create Task 2 with the extracted URLs
+5. Run Task 2 to get detail page data
+
+### Pattern 2: Paginated List Pages
+
+**Scenario**: Extract data from multiple pages of a paginated list.
+
+```json
+{
+  "name": "Multi-Page News List",
+  "description": "爬取多页新闻列表",
+  "urls": [
+    "https://news.example.com/list?page=1",
+    "https://news.example.com/list?page=2",
+    "https://news.example.com/list?page=3",
+    "https://news.example.com/list?page=4",
+    "https://news.example.com/list?page=5"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "wait_for": ".news-list"
+  },
+  "prompt_template": "请提取本页所有新闻的标题、链接、发布时间和摘要。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "page_number": {"type": "integer"},
+      "articles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {"type": "string"},
+            "url": {"type": "string"},
+            "date": {"type": "string"},
+            "summary": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "deduplication_enabled": true
+}
+```
+
+### Pattern 3: Incremental Updates
+
+**Scenario**: Only crawl new content since last run.
+
+```json
+{
+  "name": "Daily News Updates",
+  "description": "每日增量抓取新闻",
+  "urls": ["https://news.example.com/latest"],
+  "crawl_config": {
+    "verbose": true
+  },
+  "prompt_template": "提取所有新闻的标题、URL、发布日期和内容。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "articles": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {"type": "string"},
+            "url": {"type": "string"},
+            "date": {"type": "string", "format": "date"},
+            "content": {"type": "string"}
+          }
+        }
+      }
+    }
+  },
+  "deduplication_enabled": true,
+  "only_after_date": "2024-01-01T00:00:00Z"
+}
+```
+
+### Pattern 4: Dynamic Content with Load More
+
+**Scenario**: Pages that load content dynamically with "Load More" buttons.
+
+```json
+{
+  "name": "Infinite Scroll List",
+  "description": "处理无限滚动列表",
+  "urls": ["https://example.com/infinite-scroll"],
+  "crawl_config": {
+    "verbose": true,
+    "wait_for": ".item-list",
+    "js_code": |
+      // 模拟滚动到底部触发加载
+      for (let i = 0; i < 5; i++) {
+        window.scrollTo(0, document.body.scrollHeight);
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // 点击"加载更多"按钮（如果存在）
+        const loadMore = document.querySelector('.load-more, .more-btn');
+        if (loadMore && loadMore.offsetParent !== null) {
+          loadMore.click();
+          await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+      }
+  },
+  "prompt_template": "提取页面上所有已加载的列表项信息。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {"type": "string"},
+            "url": {"type": "string"}
+          }
+        }
+      },
+      "total_loaded": {"type": "integer"}
+    }
+  }
+}
+```
+
+### Pattern 5: Category-Based Crawling
+
+**Scenario**: Crawl multiple categories or sections of a site.
+
+```json
+{
+  "name": "Multi-Category Product Crawl",
+  "description": "爬取多个分类的产品",
+  "urls": [
+    "https://shop.example.com/category/electronics",
+    "https://shop.example.com/category/books",
+    "https://shop.example.com/category/clothing",
+    "https://shop.example.com/category/home"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "css_selector": ".product-grid"
+  },
+  "prompt_template": "提取分类名称和该分类下的所有产品信息（名称、价格、链接）。",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "category": {"type": "string"},
+      "products": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {"type": "string"},
+            "price": {"type": "string"},
+            "url": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+### Best Practices for Complex Patterns
+
+1. **Split Tasks Logically**: Separate list extraction from detail crawling
+2. **Use Deduplication**: Enable for list pages to avoid re-processing
+3. **Handle Pagination**: Generate URL lists programmatically for multi-page lists
+4. **Wait for Dynamic Content**: Use `wait_for` and `js_code` for JavaScript-heavy sites
+5. **Extract URLs Carefully**: Ensure extracted URLs are absolute, not relative
+6. **Batch Detail Pages**: Group detail page URLs into manageable batches
+7. **Monitor Rate Limits**: Space out requests to avoid being blocked
+8. **Use Incremental Updates**: Set `only_after_date` for periodic crawling
+
 ## Best Practices
 
 1. **Use Default LLM Configuration**: Set defaults in `.env` to avoid repetition
