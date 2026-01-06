@@ -121,15 +121,9 @@ async def get_run_logs(
     error_log_url = None
     if run.urls_failed > 0:
         error_log_path = generate_minio_path(run.id, 'logs', 'error_log.json')
-        # Check if error log exists in MinIO
-        try:
-            error_log_url = minio_client.get_presigned_url(error_log_path)
-        except FileNotFoundError:
-            # Error log doesn't exist
-            pass
-        except Exception as e:
-            # Log unexpected errors but don't fail the request
-            logger.warning(f"Error checking for error log: {str(e)}")
+        # Try to generate presigned URL for error log
+        error_log_url = minio_client.get_presigned_url(error_log_path)
+        # get_presigned_url returns None if the file doesn't exist or there's an error
     
     response = {
         "run_id": run_id,
