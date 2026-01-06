@@ -130,7 +130,7 @@ class DocumentResponse(BaseModel):
     title: Optional[str]
     content: Optional[str]
     structured_data: Optional[Dict[str, Any]]
-    metadata: Optional[Dict[str, Any]]
+    doc_metadata: Optional[Dict[str, Any]]
     crawled_at: datetime
     markdown_path: Optional[str]
     json_path: Optional[str]
