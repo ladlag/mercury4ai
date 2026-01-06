@@ -1,6 +1,7 @@
 #!/bin/bash
 # Validation script for Mercury4AI deployment
 
+# Exit on error, but allow health checks to fail gracefully with || true
 set -e
 
 echo "========================================="
@@ -62,12 +63,14 @@ echo "----------------------------"
 # Check PostgreSQL
 echo -n "Checking PostgreSQL... "
 if command -v pg_isready &> /dev/null; then
+    # Use pg_isready for proper PostgreSQL protocol check
     if pg_isready -h localhost -p 5432 -U mercury4ai > /dev/null 2>&1; then
         echo -e "${GREEN}✓ OK${NC}"
     else
         echo -e "${RED}✗ FAILED${NC}"
     fi
 elif nc -z localhost 5432 2>/dev/null; then
+    # Fallback to basic port connectivity check
     echo -e "${GREEN}✓ OK${NC}"
 else
     echo -e "${RED}✗ FAILED${NC}"
@@ -76,12 +79,14 @@ fi
 # Check Redis
 echo -n "Checking Redis... "
 if command -v redis-cli &> /dev/null; then
+    # Use redis-cli for proper Redis protocol check
     if redis-cli -h localhost -p 6379 ping > /dev/null 2>&1; then
         echo -e "${GREEN}✓ OK${NC}"
     else
         echo -e "${RED}✗ FAILED${NC}"
     fi
 elif nc -z localhost 6379 2>/dev/null; then
+    # Fallback to basic port connectivity check
     echo -e "${GREEN}✓ OK${NC}"
 else
     echo -e "${RED}✗ FAILED${NC}"
