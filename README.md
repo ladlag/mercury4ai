@@ -44,6 +44,21 @@ git clone https://github.com/ladlag/mercury4ai.git
 cd mercury4ai
 ```
 
+### Quick Integrity Check (快速完整性检查)
+
+Before starting, you can verify the code and configuration integrity:
+
+```bash
+chmod +x check_integrity.sh
+./check_integrity.sh
+```
+
+This will check:
+- Directory structure and core files
+- Python/YAML/JSON syntax
+- Docker configuration
+- Dependencies and documentation
+
 ### 2. Configure Environment (Optional)
 
 The application will work out-of-the-box with default configurations. For production deployments or custom configurations:
@@ -212,6 +227,15 @@ See the `examples/` directory for sample task configurations:
 - `task_chinese_llm_deepseek.json` - DeepSeek configuration example
 - `task_chinese_llm_qwen.yaml` - Qwen/Tongyi Qianwen configuration
 - `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling with Chinese LLM
+
+**📖 Detailed Guide for bjhdedu Crawl:**  
+See [BJHDEDU_CRAWL_GUIDE.md](BJHDEDU_CRAWL_GUIDE.md) for complete step-by-step instructions on crawling https://www.bjhdedu.cn/zxfw/fwzt/szx/
+
+**🧪 Automated Testing:**  
+Run the automated test for bjhdedu crawl:
+```bash
+./test_bjhdedu_crawl.sh
+```
 
 ### Export/Import Tasks
 
@@ -540,6 +564,48 @@ prompt_template: |
 ```
 
 See `examples/` directory for more examples including Chinese LLM configurations.
+
+## Testing & Validation
+
+### Integrity Check (完整性检查)
+
+Run comprehensive code and configuration integrity check:
+
+```bash
+./check_integrity.sh
+```
+
+This validates:
+- Directory structure and core files
+- Python, YAML, and JSON syntax
+- Docker configuration
+- Dependencies and security settings
+
+### Service Validation (服务验证)
+
+Run service health check and validation:
+
+```bash
+./validate.sh
+```
+
+### Automated Crawl Testing (自动化爬取测试)
+
+Test the complete crawl workflow with bjhdedu example:
+
+```bash
+./test_bjhdedu_crawl.sh
+```
+
+This will automatically:
+- Start Docker services
+- Perform health checks
+- Import and execute a crawl task
+- Monitor progress and validate results
+
+For detailed documentation, see:
+- [BJHDEDU_CRAWL_GUIDE.md](BJHDEDU_CRAWL_GUIDE.md) - Complete bjhdedu crawl guide
+- [INTEGRITY_CHECK_REPORT.md](INTEGRITY_CHECK_REPORT.md) - Integrity check report
 
 ## Development
 
