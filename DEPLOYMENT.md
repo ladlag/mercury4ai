@@ -19,9 +19,19 @@ cd mercury4ai
 
 #### 2. Configure Environment
 
+For production deployments, **you must configure security settings**. You can either create a `.env` file or set environment variables directly:
+
+**Option A: Using .env file (recommended)**
 ```bash
 cp .env.example .env
 nano .env  # or vim, vi, etc.
+```
+
+**Option B: Set environment variables directly**
+```bash
+export API_KEY=your-secure-key-here
+export POSTGRES_PASSWORD=your-secure-password
+export MINIO_SECRET_KEY=your-secure-minio-key
 ```
 
 **Critical settings to change:**
@@ -36,6 +46,11 @@ POSTGRES_PASSWORD=change-this-secure-password
 # MinIO credentials
 MINIO_SECRET_KEY=change-this-secure-key
 ```
+
+**Warning**: The application includes default values for development/testing. These **MUST** be changed in production:
+- Default `API_KEY`: `your-secure-api-key-change-this`
+- Default `POSTGRES_PASSWORD`: `mercury4ai_password`
+- Default `MINIO_SECRET_KEY`: `minioadmin`
 
 Generate secure keys:
 ```bash

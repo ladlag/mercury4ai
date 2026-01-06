@@ -44,14 +44,18 @@ git clone https://github.com/ladlag/mercury4ai.git
 cd mercury4ai
 ```
 
-### 2. Configure Environment
+### 2. Configure Environment (Optional)
+
+The application will work out-of-the-box with default configurations. For production deployments or custom configurations:
 
 ```bash
 cp .env.example .env
 # Edit .env and set your API_KEY and other configurations
 ```
 
-**Important**: Change the `API_KEY` in `.env` to a secure value.
+**Important**: 
+- The default `API_KEY` is `your-secure-api-key-change-this`. Change this in production by setting the `API_KEY` environment variable or creating a `.env` file.
+- If you don't create a `.env` file, the application will use defaults from `.env.example`. This is suitable for development and testing.
 
 ### 3. Start Services
 
