@@ -118,11 +118,12 @@ fi
 print_info "验证 YAML 任务文件..."
 if $HAS_PYTHON; then
     YAML_ERROR=0
+    YAML_FILE="examples/task_bjhdedu_list_crawl.yaml"
     # Test the main task file
-    if ! python3 -c "import yaml; yaml.safe_load(open('examples/task_bjhdedu_list_crawl.yaml'))" 2>/dev/null; then
-        print_error "YAML 文件语法错误: examples/task_bjhdedu_list_crawl.yaml"
+    if ! python3 -c "import yaml; yaml.safe_load(open('$YAML_FILE'))" 2>/dev/null; then
+        print_error "YAML 文件语法错误: $YAML_FILE"
         # Show detailed error for debugging
-        python3 -c "import yaml; yaml.safe_load(open('examples/task_bjhdedu_list_crawl.yaml'))" 2>&1 | head -5
+        python3 -c "import yaml; yaml.safe_load(open('$YAML_FILE'))" 2>&1 | head -5
         YAML_ERROR=1
     fi
     

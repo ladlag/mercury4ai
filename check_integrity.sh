@@ -301,13 +301,14 @@ if command -v python3 &> /dev/null; then
     
     for file in "${YAML_FILES[@]}"; do
         if [ -f "$file" ]; then
-            if python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>/dev/null; then
+            YAML_CMD="import yaml; yaml.safe_load(open('$file'))"
+            if python3 -c "$YAML_CMD" 2>/dev/null; then
                 print_success "YAML 语法正确: $file"
             else
                 print_error "YAML 语法错误: $file"
                 # Show detailed error for debugging (only first 3 lines to keep output clean)
                 echo "  错误详情:"
-                python3 -c "import yaml; yaml.safe_load(open('$file'))" 2>&1 | head -3 | sed 's/^/    /'
+                python3 -c "$YAML_CMD" 2>&1 | head -3 | sed 's/^/    /'
             fi
         fi
     done
