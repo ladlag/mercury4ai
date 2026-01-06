@@ -31,7 +31,7 @@ services:
   minio:
     image: minio/minio:latest
     container_name: mercury4ai-minio
-    command: server /data --console-address ":9001"
+    command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadmin}
@@ -51,7 +51,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: mercury4ai-api
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis
@@ -81,7 +81,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    command: rq worker --url redis://redis:6379/0 crawl_tasks
+    command: ["rq", "worker", "--url", "redis://redis:6379/0", "crawl_tasks"]
     environment:
       POSTGRES_HOST: postgres
       REDIS_HOST: redis

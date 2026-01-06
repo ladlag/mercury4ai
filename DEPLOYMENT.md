@@ -275,6 +275,40 @@ docker-compose ps minio
 # Login with MINIO_ROOT_USER and MINIO_ROOT_PASSWORD from .env
 ```
 
+#### API Not Receiving Requests (HTTP 502 or Connection Timeout)
+
+If the API container is running but not responding to requests:
+
+1. **Check if API is actually listening on the port:**
+   ```bash
+   docker-compose logs api | grep "Uvicorn running"
+   ```
+
+2. **Restart the API service:**
+   ```bash
+   docker-compose restart api
+   ```
+
+3. **Rebuild containers if the issue persists:**
+   ```bash
+   docker-compose down
+   docker-compose up -d --build
+   ```
+
+4. **Verify the container is healthy:**
+   ```bash
+   docker-compose exec api curl http://localhost:8000/api/health
+   ```
+
+**Note:** If you're using an older version of the repository, ensure your `docker-compose.yml` uses array format for commands:
+```yaml
+command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+```
+instead of string format:
+```yaml
+command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
 ### Performance Tuning
 
 #### Database Performance

@@ -342,6 +342,24 @@ open http://localhost:8000/docs
 
 ## Troubleshooting
 
+### API Not Responding (HTTP 502 / Connection Timeout)
+
+If the API container is running but not responding to requests:
+
+1. **Check if you're using the latest docker-compose.yml format:**
+   ```bash
+   grep -A 1 "container_name: mercury4ai-api" docker-compose.yml
+   ```
+   The command should be in array format: `command: ["uvicorn", ...]`
+   
+2. **If using string format, see [DOCKER_COMMAND_FIX.md](DOCKER_COMMAND_FIX.md) for the fix**
+
+3. **Restart services after updating:**
+   ```bash
+   docker-compose down
+   docker-compose up -d --build
+   ```
+
 ### Check Service Logs
 
 ```bash
