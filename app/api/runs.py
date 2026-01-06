@@ -111,15 +111,33 @@ async def get_run_logs(
     
     # Return MinIO paths
     from app.core.minio_client import minio_client
+    from app.services.crawler_service import generate_minio_path
     
     manifest_url = None
     if run.manifest_path:
         manifest_url = minio_client.get_presigned_url(run.manifest_path)
     
-    return {
+    # Generate error log URL if errors occurred
+    error_log_url = None
+    if run.urls_failed and run.urls_failed > 0:
+        error_log_path = generate_minio_path(run.id, 'logs', 'error_log.json')
+        # Check if error log exists in MinIO
+        try:
+            error_log_url = minio_client.get_presigned_url(error_log_path)
+        except Exception:
+            # Error log doesn't exist
+            pass
+    
+    response = {
         "run_id": run_id,
         "logs_path": run.logs_path,
         "minio_path": run.minio_path,
         "manifest_url": manifest_url,
         "message": "Use manifest_url to download run_manifest.json, or access MinIO directly"
     }
+    
+    if error_log_url:
+        response["error_log_url"] = error_log_url
+        response["message"] += ". Error log available at error_log_url"
+    
+    return response
