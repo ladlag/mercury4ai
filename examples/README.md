@@ -16,7 +16,33 @@ curl -X POST http://localhost:8000/api/tasks/import?format=json \
   --data-binary @task_news_extraction.json
 ```
 
-### 2. Product Catalog Scraping (`task_product_extraction.yaml`)
+### 2. Chinese News Extraction with Deepseek (`task_chinese_news_deepseek.json`)
+
+使用Deepseek国产大模型提取中文新闻文章的结构化数据。
+Extracts structured data from Chinese news articles using Deepseek LLM.
+
+**Usage:**
+```bash
+curl -X POST http://localhost:8000/api/tasks/import?format=json \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: text/plain" \
+  --data-binary @task_chinese_news_deepseek.json
+```
+
+### 3. Beijing Haidian Education List Scraping (`task_bjhdedu_list.yaml`)
+
+抓取北京海淀教育网列表页示例，支持使用Deepseek、Qwen、ERNIE等国产大模型。
+Example for scraping list pages from Beijing Haidian Education website, supporting Chinese LLM providers.
+
+**Usage:**
+```bash
+curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
+  -H "X-API-Key: your-api-key" \
+  -H "Content-Type: text/plain" \
+  --data-binary @task_bjhdedu_list.yaml
+```
+
+### 4. Product Catalog Scraping (`task_product_extraction.yaml`)
 
 Extracts product information from e-commerce pages including name, price, description, specifications, and availability.
 
@@ -28,7 +54,7 @@ curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
   --data-binary @task_product_extraction.yaml
 ```
 
-### 3. Research Paper Extraction (`task_research_paper.json`)
+### 5. Research Paper Extraction (`task_research_paper.json`)
 
 Extracts metadata from research papers including title, authors, abstract, DOI, and keywords.
 
@@ -40,7 +66,7 @@ curl -X POST http://localhost:8000/api/tasks/import?format=json \
   --data-binary @task_research_paper.json
 ```
 
-### 4. Simple Web Scraping (`task_simple_scraping.yaml`)
+### 6. Simple Web Scraping (`task_simple_scraping.yaml`)
 
 Basic web scraping without LLM extraction - just captures markdown and HTML content.
 
@@ -51,6 +77,77 @@ curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
   -H "Content-Type: text/plain" \
   --data-binary @task_simple_scraping.yaml
 ```
+
+## Supported LLM Providers
+
+Mercury4AI supports multiple LLM providers including Chinese/国产 models:
+
+### International Providers
+- **OpenAI**: GPT-4, GPT-3.5-turbo, etc.
+- **Anthropic**: Claude 3 Opus, Sonnet, Haiku
+- **Google**: Gemini Pro
+- **Groq**: LLaMA models
+- **Ollama**: Local models
+
+### Chinese Providers (国产大模型)
+
+#### 1. Deepseek (深度求索)
+```json
+{
+  "llm_provider": "deepseek",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "your-deepseek-api-key",
+    "temperature": 0.1,
+    "max_tokens": 4000
+  }
+}
+```
+
+Available models:
+- `deepseek-chat`: General purpose chat model
+- `deepseek-coder`: Optimized for code
+- `deepseek-reasoner`: For complex reasoning tasks
+
+#### 2. Qwen / 通义千问 (Alibaba)
+```json
+{
+  "llm_provider": "qwen",
+  "llm_model": "qwen-plus",
+  "llm_params": {
+    "api_key": "your-dashscope-api-key",
+    "temperature": 0.1,
+    "max_tokens": 4000
+  }
+}
+```
+
+Available models:
+- `qwen-plus`: Enhanced version
+- `qwen-turbo`: Fast inference
+- `qwen-max`: Most capable model
+
+Get API key from: https://dashscope.aliyun.com/
+
+#### 3. ERNIE / 文心一言 (Baidu)
+```json
+{
+  "llm_provider": "ernie",
+  "llm_model": "ernie-bot",
+  "llm_params": {
+    "api_key": "your-ernie-api-key",
+    "temperature": 0.1,
+    "max_tokens": 4000
+  }
+}
+```
+
+Available models:
+- `ernie-bot`: General purpose
+- `ernie-bot-turbo`: Fast inference
+- `ernie-bot-4`: Most advanced version
+
+Get API key from: https://cloud.baidu.com/product/wenxinworkshop
 
 ## Creating Your Own Tasks
 
