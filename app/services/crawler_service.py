@@ -14,21 +14,19 @@ logger = logging.getLogger(__name__)
 
 
 # Provider configurations for Chinese LLM providers
+# Note: env_key is reserved for future environment variable fallback support
 CHINESE_LLM_PROVIDERS = {
     'qwen': {
         'model_prefix': 'openai/',
         'base_url': 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-        'env_key': 'QWEN_API_KEY',
     },
     'ernie': {
         'model_prefix': 'openai/',
         'base_url': 'https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat',
-        'env_key': 'ERNIE_API_KEY',
     },
     'deepseek': {
         'model_prefix': 'deepseek/',
         'base_url': None,  # Uses default Deepseek endpoint
-        'env_key': 'DEEPSEEK_API_KEY',
     },
 }
 

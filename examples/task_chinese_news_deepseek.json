@@ -1,6 +1,6 @@
 {
   "name": "Chinese News Extraction with Deepseek",
-  "description": "使用Deepseek大模型提取中文新闻文章的结构化数据",
+  "description": "使用Deepseek大模型提取中文新闻文章的结构化数据 | NOTE: Replace the example.com URL with your target Chinese news URL before use",
   "urls": [
     "https://example.com/news/article1"
   ],
