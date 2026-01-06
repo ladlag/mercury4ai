@@ -364,12 +364,12 @@ async def process_image(
 
 
 def generate_run_manifest(
-    run_id: str, 
-    task, 
-    urls_crawled: int, 
-    urls_failed: int, 
-    documents_created: int,
+    run_id: str,
     *,
+    task,
+    urls_crawled: int,
+    urls_failed: int,
+    documents_created: int,
     error_details: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """Generate run manifest"""
