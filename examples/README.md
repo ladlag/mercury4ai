@@ -88,6 +88,76 @@ deduplication_enabled: true
 ```
 Perfect: Clean config, reusable templates
 
+## API Key Configuration
+
+### Where to Set LLM API Keys
+
+**Three methods (in order of preference):**
+
+1. **Environment Variables (Best for Production)**
+   ```bash
+   # In .env file
+   DEFAULT_LLM_API_KEY=your-deepseek-api-key
+   DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+   DEFAULT_LLM_MODEL=deepseek-chat
+   ```
+   
+   Tasks automatically use these defaults - no need to specify in each task.
+
+2. **Per-Task Configuration (For Different APIs)**
+   ```yaml
+   name: "My Task"
+   llm_params:
+     api_key: "different-api-key"
+     base_url: "https://api.deepseek.com"
+   ```
+   
+   Overrides default for this specific task.
+
+3. **Full Specification (For Complete Control)**
+   ```yaml
+   name: "My Task"
+   llm_provider: "openai"
+   llm_model: "gpt-4"
+   llm_params:
+     api_key: "sk-openai-key"
+     temperature: 0.3
+   ```
+
+### How Prompt and Schema Work Together
+
+**Key Concept**: Both `prompt_template` and `output_schema` are sent to the LLM:
+
+```
+┌─────────────────────────────────────────┐
+│  Mercury4AI                             │
+│  ├─ Crawls page → Gets content         │
+│  ├─ Loads prompt from template file    │
+│  ├─ Loads schema from schema file      │
+│  └─ Sends to LLM:                       │
+│     ┌─────────────────────────────┐    │
+│     │ Page Content: "..."         │    │
+│     │ Prompt: "Extract title..."  │────┼──→ LLM API
+│     │ Schema: {"type":"object"..} │    │
+│     └─────────────────────────────┘    │
+└─────────────────────────────────────────┘
+                  │
+                  ▼
+         ┌─────────────────┐
+         │ LLM Returns:    │
+         │ {               │
+         │   "title": "X", │
+         │   "author": "Y" │
+         │ }               │
+         └─────────────────┘
+```
+
+**The LLM sees both**:
+- **Prompt**: "Please extract title, author, date from this article"
+- **Schema**: JSON structure with field types and descriptions
+
+**Result**: LLM understands what to extract (from prompt) and how to format it (from schema).
+
 ## Examples Overview
 
 ### 1. Simple Web Scraping (`task_simple_scraping.yaml`)
@@ -176,7 +246,142 @@ Real-world example of list page crawling with Chinese LLM.
 - **Anthropic**: Claude 3 Opus, Sonnet, Haiku
 - **Groq**: LLaMA models
 
+**API Key Setup**:
+```bash
+# In .env - Set your API key once
+DEFAULT_LLM_API_KEY=your-api-key-here
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com  # Or other provider
+```
+
 For detailed configuration, see [CONFIG.md](../CONFIG.md#chinese-llm-setup).
+
+## Complete Workflow: List Page → Detail Pages
+
+This shows the most common pattern with API key configuration.
+
+### Setup (One-Time)
+
+**1. Configure API Key in `.env`:**
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_API_KEY=your-deepseek-api-key
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+```
+
+**2. Start Mercury4AI:**
+```bash
+docker-compose up -d
+```
+
+### Step 1: Create and Run List Page Task
+
+**Create `task_step1.yaml`** (see `task_step1_list_page.yaml`):
+```yaml
+name: "Extract Product URLs"
+urls: ["https://shop.example.com/products"]
+crawl_config:
+  verbose: true
+  wait_for: ".product-list"
+prompt_template: "@prompt_templates/list_page_extract_urls.txt"
+output_schema: "@schemas/list_page_items.json"
+```
+
+**Import and run:**
+```bash
+# Import task
+curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
+  -H "X-API-Key: your-mercury-api-key" \
+  -H "Content-Type: text/plain" \
+  --data-binary @task_step1.yaml
+
+# Response: {"id": "task-uuid-1", ...}
+
+# Run task
+curl -X POST http://localhost:8000/api/tasks/task-uuid-1/run \
+  -H "X-API-Key: your-mercury-api-key"
+
+# Response: {"run_id": "run-uuid-1", ...}
+```
+
+### Step 2: Get Results and Extract URLs
+
+```bash
+# Get results
+curl http://localhost:8000/api/runs/run-uuid-1/result \
+  -H "X-API-Key: your-mercury-api-key"
+```
+
+**Response:**
+```json
+{
+  "structured_data": {
+    "items": [
+      {"title": "Product 1", "url": "https://shop.example.com/product/1"},
+      {"title": "Product 2", "url": "https://shop.example.com/product/2"},
+      {"title": "Product 3", "url": "https://shop.example.com/product/3"}
+    ]
+  }
+}
+```
+
+**Extract URLs** (Python example):
+```python
+import requests
+
+response = requests.get(
+    "http://localhost:8000/api/runs/run-uuid-1/result",
+    headers={"X-API-Key": "your-mercury-api-key"}
+)
+urls = [item["url"] for item in response.json()["structured_data"]["items"]]
+# urls = ["https://shop.example.com/product/1", ...]
+```
+
+### Step 3: Create and Run Detail Pages Task
+
+**Create `task_step2.yaml`** with extracted URLs:
+```yaml
+name: "Extract Product Details"
+urls:
+  - https://shop.example.com/product/1
+  - https://shop.example.com/product/2
+  - https://shop.example.com/product/3
+crawl_config:
+  verbose: true
+  wait_for: ".product-detail"
+prompt_template: "@prompt_templates/detail_page_extract_full.txt"
+output_schema: "@schemas/detail_page_full.json"
+deduplication_enabled: true
+```
+
+**Import and run:**
+```bash
+# Import task
+curl -X POST http://localhost:8000/api/tasks/import?format=yaml \
+  -H "X-API-Key: your-mercury-api-key" \
+  -H "Content-Type: text/plain" \
+  --data-binary @task_step2.yaml
+
+# Run task
+curl -X POST http://localhost:8000/api/tasks/task-uuid-2/run \
+  -H "X-API-Key: your-mercury-api-key"
+```
+
+### Step 4: Get Final Results
+
+```bash
+curl http://localhost:8000/api/runs/run-uuid-2/result \
+  -H "X-API-Key: your-mercury-api-key"
+```
+
+**Response:** Complete product details for all products.
+
+**Key Points**:
+- ✅ API key set once in `.env` - both tasks use it automatically
+- ✅ Templates are reusable - same templates for different sites
+- ✅ Clean workflow - two simple tasks, not one complex file
+- ✅ Prompt + Schema work together - LLM knows what to extract and format
+
 
 ## Common Crawling Patterns
 

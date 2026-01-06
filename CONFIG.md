@@ -4,12 +4,82 @@ Complete guide to configuring Mercury4AI for web crawling and data extraction.
 
 ## Table of Contents
 
-1. [Environment Variables](#environment-variables)
-2. [Task Configuration](#task-configuration)
-3. [Crawl Configuration](#crawl-configuration)
-4. [LLM Configuration](#llm-configuration)
-5. [Chinese LLM Setup](#chinese-llm-setup)
-6. [Reusable Templates](#reusable-templates)
+1. [How It Works](#how-it-works)
+2. [Environment Variables](#environment-variables)
+3. [Task Configuration](#task-configuration)
+4. [Crawl Configuration](#crawl-configuration)
+5. [LLM Configuration](#llm-configuration)
+6. [Chinese LLM Setup](#chinese-llm-setup)
+7. [Reusable Templates](#reusable-templates)
+
+## How It Works
+
+### LLM Extraction Process
+
+Mercury4AI uses crawl4ai's `LLMExtractionStrategy` to extract structured data:
+
+1. **Crawl Page**: crawl4ai fetches and renders the web page
+2. **Extract Content**: Gets the page's markdown/HTML content
+3. **Send to LLM**: Sends to LLM with:
+   - **`prompt_template`**: Instructions on what data to extract (e.g., "Extract title, author, date")
+   - **`output_schema`**: JSON Schema defining the output structure
+   - **Combined**: LLM receives both the prompt and schema to understand what to extract and in what format
+4. **Structured Output**: LLM returns JSON matching the schema
+5. **Save Results**: Structured data saved to database and MinIO
+
+**Key Point**: `prompt_template` and `output_schema` work together:
+- **Prompt**: Tells LLM **what** to extract
+- **Schema**: Tells LLM **how** to format the output (JSON structure)
+- Both are sent to the LLM in the same API call
+
+### API Key Configuration
+
+Three ways to configure LLM API keys:
+
+**Method 1: Environment Variables (Recommended)**
+```bash
+# In .env file
+DEFAULT_LLM_API_KEY=your-deepseek-api-key
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_PROVIDER=openai
+```
+
+Tasks automatically use these defaults:
+```yaml
+name: "My Task"
+urls: ["https://example.com"]
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+# No need to specify API key - uses DEFAULT_LLM_API_KEY
+```
+
+**Method 2: Per-Task Override**
+```yaml
+name: "My Task"
+urls: ["https://example.com"]
+llm_params:
+  api_key: "different-api-key"  # Overrides DEFAULT_LLM_API_KEY
+  base_url: "https://api.deepseek.com"
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+```
+
+**Method 3: Full LLM Configuration**
+```yaml
+name: "My Task"
+urls: ["https://example.com"]
+llm_provider: "openai"
+llm_model: "gpt-4"
+llm_params:
+  api_key: "sk-openai-key"
+  temperature: 0.3
+prompt_template: "Extract title and content"
+output_schema:
+  type: object
+  properties:
+    title: {type: string}
+```
 
 ## Environment Variables
 
@@ -587,9 +657,20 @@ When you need custom extraction logic not covered by templates:
 
 This is the most common web scraping pattern, requiring two separate tasks.
 
+#### Complete Workflow with API Configuration
+
+**Prerequisites**: Set in `.env` file (recommended):
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=deepseek-chat
+DEFAULT_LLM_API_KEY=your-deepseek-api-key
+DEFAULT_LLM_BASE_URL=https://api.deepseek.com
+DEFAULT_LLM_TEMPERATURE=0.1
+```
+
 #### Step 1: Extract URLs from List Page
 
-**Using reusable template:**
+**Task Configuration:**
 
 ```json
 {
@@ -604,7 +685,37 @@ This is the most common web scraping pattern, requiring two separate tasks.
 }
 ```
 
-**Result**: Get list of URLs from `structured_data.items[].url`
+**Note**: This task uses `DEFAULT_LLM_API_KEY` from `.env`. No need to specify API key in task.
+
+**API Call:**
+```bash
+# Create task
+curl -X POST http://localhost:8000/api/tasks \
+  -H "X-API-Key: your-mercury-api-key" \
+  -H "Content-Type: application/json" \
+  -d @task_step1.json
+
+# Run task (returns run_id)
+curl -X POST http://localhost:8000/api/tasks/{task_id}/run \
+  -H "X-API-Key: your-mercury-api-key"
+
+# Get results
+curl http://localhost:8000/api/runs/{run_id}/result \
+  -H "X-API-Key: your-mercury-api-key"
+```
+
+**Result Example**: 
+```json
+{
+  "structured_data": {
+    "items": [
+      {"title": "Product 1", "url": "https://shop.example.com/product/1"},
+      {"title": "Product 2", "url": "https://shop.example.com/product/2"},
+      {"title": "Product 3", "url": "https://shop.example.com/product/3"}
+    ]
+  }
+}
+```
 
 #### Step 2: Crawl Detail Pages
 
@@ -627,31 +738,41 @@ This is the most common web scraping pattern, requiring two separate tasks.
 }
 ```
 
-**Workflow**:
-1. Create and run Task 1 (list page) → Get run_id
-2. Get results: `GET /api/runs/{run_id}/result`
-3. Extract URLs from `structured_data.items[].url`
-4. Create Task 2 with extracted URLs
-5. Run Task 2 to get detail page data
+**Extract URLs from Step 1 results**:
+```python
+# Python example
+import requests
 
-**See example files**: `examples/task_step1_list_page.yaml` and `examples/task_step2_detail_pages.yaml`
-        "type": "array",
-        "items": {"type": "string"},
-        "description": "产品图片URL列表"
-      }
-    }
-  },
-  "deduplication_enabled": true,
-  "fallback_download_enabled": true
+# Get Step 1 results
+response = requests.get(
+    f"http://localhost:8000/api/runs/{run_id}/result",
+    headers={"X-API-Key": "your-mercury-api-key"}
+)
+result = response.json()
+
+# Extract all URLs
+urls = [item["url"] for item in result["structured_data"]["items"]]
+
+# Create Step 2 task with these URLs
+task_step2 = {
+    "name": "Extract Product Details",
+    "urls": urls,  # Use extracted URLs
+    "prompt_template": "@prompt_templates/detail_page_extract_full.txt",
+    "output_schema": "@schemas/detail_page_full.json"
 }
 ```
 
-**Workflow**:
-1. Create and run Task 1 (list page)
-2. Get results from Task 1 via API: `GET /api/runs/{run_id}/result`
-3. Extract URLs from the structured data
-4. Create Task 2 with the extracted URLs
-5. Run Task 2 to get detail page data
+**Complete Workflow Summary**:
+1. Create Task 1 (list page) with template references
+2. Run Task 1 → Get `run_id`
+3. Fetch results: `GET /api/runs/{run_id}/result`
+4. Extract URLs from `structured_data.items[].url`
+5. Create Task 2 with extracted URLs array
+6. Run Task 2 → Get detail page data
+
+**API Keys**: Both tasks automatically use `DEFAULT_LLM_API_KEY` from `.env`
+
+**See example files**: `examples/task_step1_list_page.yaml` and `examples/task_step2_detail_pages.yaml`
 
 ### Pattern 2: Paginated List Pages
 

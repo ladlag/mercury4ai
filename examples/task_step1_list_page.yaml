@@ -11,10 +11,24 @@ crawl_config:
   verbose: true
   wait_for: ".list, .items"
 
+# LLM配置方式1：使用环境变量默认配置（推荐）
+# 在.env中设置 DEFAULT_LLM_API_KEY=your-key
+# 任务会自动使用默认配置
+
+# LLM配置方式2：在任务中指定（覆盖默认值）
+# llm_params:
+#   api_key: "your-deepseek-api-key"
+#   base_url: "https://api.deepseek.com"
+#   temperature: 0.1
+
 # 使用可复用的提示词模板
+# 系统会将prompt和output_schema一起发送给LLM
+# LLM根据prompt提取信息，按output_schema定义的结构返回JSON
 prompt_template: "@prompt_templates/list_page_extract_urls.txt"
 
 # 使用可复用的输出结构
+# 这个schema告诉LLM要返回什么格式的JSON
 output_schema: "@schemas/list_page_items.json"
 
 deduplication_enabled: true
+
