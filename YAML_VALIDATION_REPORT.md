@@ -19,10 +19,19 @@ The following YAML files were checked and verified:
 All files successfully parse with `yaml.safe_load()`:
 ```python
 import yaml
-yaml.safe_load(open('examples/task_bjhdedu_list_crawl.yaml'))  # ✓ Success
-yaml.safe_load(open('examples/task_simple_scraping.yaml'))      # ✓ Success
-yaml.safe_load(open('examples/task_product_extraction.yaml'))   # ✓ Success
-yaml.safe_load(open('examples/task_chinese_llm_qwen.yaml'))     # ✓ Success
+
+# All files parse successfully
+with open('examples/task_bjhdedu_list_crawl.yaml') as f:
+    yaml.safe_load(f)  # ✓ Success
+    
+with open('examples/task_simple_scraping.yaml') as f:
+    yaml.safe_load(f)  # ✓ Success
+    
+with open('examples/task_product_extraction.yaml') as f:
+    yaml.safe_load(f)  # ✓ Success
+    
+with open('examples/task_chinese_llm_qwen.yaml') as f:
+    yaml.safe_load(f)  # ✓ Success
 ```
 
 ### 2. check_integrity.sh Script
@@ -73,7 +82,7 @@ YAML validation step shows:
 - All files have proper YAML structure with correct indentation
 - UTF-8 encoding is correctly handled for Chinese characters
 - Files can be parsed, modified, and serialized back to YAML without errors
-- Some fields contain `null` values which is valid YAML (e.g., `only_after_date: null`)
+- Some fields explicitly use YAML's `null` value (e.g., `only_after_date: null`), which is valid YAML syntax for representing the absence of a value
 
 ## Conclusion
 
