@@ -1,0 +1,113 @@
+# 北京海淀教育列表页抓取示例
+# Example task for scraping list pages from Beijing Haidian Education website
+# URL: https://www.bjhdedu.cn/zxfw/fwzt/szx/
+
+name: "北京海淀教育-数字校园列表抓取"
+description: "抓取北京海淀教育网数字校园专题列表页，提取标题、链接、发布时间等信息"
+
+# 目标URL列表
+urls:
+  - "https://www.bjhdedu.cn/zxfw/fwzt/szx/"
+
+# Crawl4ai 爬取配置
+crawl_config:
+  verbose: true
+  screenshot: false
+  # 等待页面加载完成
+  wait_for: "body"
+  # JavaScript代码：等待列表内容加载
+  js_code: |
+    // 等待列表内容加载
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    // 滚动到页面底部以加载所有内容
+    window.scrollTo(0, document.body.scrollHeight);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+# LLM提取配置 - 使用国产大模型
+
+# 选项1: 使用 Deepseek
+llm_provider: "deepseek"
+llm_model: "deepseek-chat"
+llm_params:
+  api_key: "your-deepseek-api-key-here"
+  temperature: 0.1
+  max_tokens: 4000
+
+# 选项2: 使用 Qwen (通义千问)
+# llm_provider: "qwen"
+# llm_model: "qwen-plus"
+# llm_params:
+#   api_key: "your-qwen-api-key-here"
+#   temperature: 0.1
+#   max_tokens: 4000
+
+# 选项3: 使用 ERNIE (文心一言)
+# llm_provider: "ernie"
+# llm_model: "ernie-bot"
+# llm_params:
+#   api_key: "your-ernie-api-key-here"
+#   temperature: 0.1
+#   max_tokens: 4000
+
+# 提取指令
+prompt_template: |
+  请从这个列表页中提取所有的内容项。
+  
+  每个列表项应该包含：
+  - 标题（title）
+  - 链接地址（url）
+  - 发布时间（publish_date）
+  - 摘要或描述（summary，如果有的话）
+  - 分类或标签（category，如果有的话）
+  
+  请识别页面中的所有列表项，并按照上述格式提取信息。
+  如果某些字段不存在，可以设置为 null。
+  
+  请以JSON格式返回所有提取的列表项。
+
+# 输出JSON Schema
+output_schema:
+  type: "object"
+  properties:
+    page_title:
+      type: "string"
+      description: "页面标题"
+    page_url:
+      type: "string"
+      description: "页面URL"
+    items:
+      type: "array"
+      description: "列表项数组"
+      items:
+        type: "object"
+        properties:
+          title:
+            type: "string"
+            description: "列表项标题"
+          url:
+            type: "string"
+            description: "列表项链接地址"
+          publish_date:
+            type: "string"
+            description: "发布时间（ISO格式或原始格式）"
+          summary:
+            type: "string"
+            description: "摘要或描述"
+          category:
+            type: "string"
+            description: "分类或标签"
+        required: ["title"]
+    total_items:
+      type: "integer"
+      description: "列表项总数"
+  required: ["items"]
+
+# 去重配置
+deduplication_enabled: true
+
+# 日期过滤（可选）
+# only_after_date: "2024-01-01T00:00:00"
+
+# 图片和附件下载配置
+fallback_download_enabled: true
+fallback_max_size_mb: 10
