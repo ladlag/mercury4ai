@@ -92,8 +92,10 @@ class CrawlerService:
             if llm_config and prompt_template:
                 provider = llm_config.get('provider', 'openai')
                 model = llm_config.get('model', 'gpt-4')
-                api_key = llm_config.get('api_key')
                 params = llm_config.get('params', {})
+                
+                # Extract API key from params (it's stored in task.llm_params)
+                api_key = params.get('api_key')
                 
                 # Handle Chinese LLM providers
                 provider_lower = provider.lower()
