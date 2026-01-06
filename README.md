@@ -57,6 +57,15 @@ cp .env.example .env
 - The default `API_KEY` is `your-secure-api-key-change-this`. Change this in production by setting the `API_KEY` environment variable or creating a `.env` file.
 - If you don't create a `.env` file, the application will use defaults from `.env.example`. This is suitable for development and testing.
 
+**For LLM-powered extraction**, set default LLM configuration in your `.env` file:
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=gpt-4
+DEFAULT_LLM_API_KEY=sk-your-api-key-here
+DEFAULT_LLM_TEMPERATURE=0.1
+```
+This allows you to create tasks without repeating LLM configuration in every task.
+
 ### 3. Start Services
 
 ```bash
@@ -187,6 +196,16 @@ curl http://localhost:8000/api/runs/{run_id}/logs \
 ```
 
 Returns MinIO paths and presigned URLs for downloading artifacts.
+
+### Example Task Configurations
+
+See the `examples/` directory for sample task configurations:
+
+- `task_news_extraction.json` - Full LLM configuration specified in task
+- `task_product_extraction.yaml` - Full LLM configuration in YAML format
+- `task_with_default_llm.yaml` - Uses default LLM config from environment (recommended)
+- `task_partial_llm_override.json` - Partial override (uses default API key, custom model/temperature)
+- `task_simple_scraping.yaml` - No LLM extraction, basic scraping only
 
 ### Export/Import Tasks
 
