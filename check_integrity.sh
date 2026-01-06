@@ -501,16 +501,24 @@ echo ""
 
 if [ $FAILED -eq 0 ]; then
     if [ $WARNINGS -eq 0 ]; then
-        print_success "所有检查通过！系统配置完整且正确。"
-        print_success "All checks passed! System configuration is complete and correct."
+        echo -e "${GREEN}✓ 所有检查通过！系统配置完整且正确。${NC}"
+        echo -e "${GREEN}✓ All checks passed! System configuration is complete and correct.${NC}"
         exit 0
     else
-        print_warning "检查通过，但有 $WARNINGS 个警告需要注意。"
-        print_warning "Checks passed, but $WARNINGS warnings need attention."
+        echo -e "${YELLOW}⚠ 检查通过，但有 $WARNINGS 个警告需要注意。${NC}"
+        if [ $WARNINGS -eq 1 ]; then
+            echo -e "${YELLOW}⚠ Checks passed, but $WARNINGS warning needs attention.${NC}"
+        else
+            echo -e "${YELLOW}⚠ Checks passed, but $WARNINGS warnings need attention.${NC}"
+        fi
         exit 0
     fi
 else
-    print_error "发现 $FAILED 个错误，请修复后再继续。"
-    print_error "Found $FAILED errors, please fix before proceeding."
+    echo -e "${RED}✗ 发现 $FAILED 个错误，请修复后再继续。${NC}"
+    if [ $FAILED -eq 1 ]; then
+        echo -e "${RED}✗ Found $FAILED error, please fix before proceeding.${NC}"
+    else
+        echo -e "${RED}✗ Found $FAILED errors, please fix before proceeding.${NC}"
+    fi
     exit 1
 fi
