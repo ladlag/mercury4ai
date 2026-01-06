@@ -1,0 +1,15 @@
+Please extract the following information from this news article:
+- Title
+- Author
+- Publication date
+- Main content
+- Keywords (if available)
+
+Data cleaning requirements:
+1. Remove all HTML tags
+2. Standardize date format to YYYY-MM-DD
+3. Remove extra spaces and line breaks
+4. Normalize punctuation
+5. If no explicit author information, mark as "Unknown" or leave empty
+
+Please return the result in JSON format, ensuring the result is valid JSON.

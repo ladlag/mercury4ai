@@ -5,46 +5,49 @@ from datetime import datetime
 
 class CrawlConfigSchema(BaseModel):
     """Configuration for crawl4ai crawler"""
-    js_code: Optional[str] = None
-    wait_for: Optional[str] = None
-    css_selector: Optional[str] = None
-    screenshot: bool = False
-    pdf: bool = False
-    verbose: bool = True
+    js_code: Optional[str] = Field(None, description="JavaScript code to execute on page before crawling (e.g., scroll, click buttons)")
+    wait_for: Optional[str] = Field(None, description="CSS selector to wait for before crawling (ensures dynamic content loads)")
+    css_selector: Optional[str] = Field(None, description="CSS selector to extract specific content (narrows focus to main content)")
+    screenshot: bool = Field(False, description="Capture page screenshot (increases storage requirements)")
+    pdf: bool = Field(False, description="Generate PDF of page (increases storage requirements)")
+    verbose: bool = Field(True, description="Enable detailed logging during crawl")
 
 
 class LLMConfigSchema(BaseModel):
     """LLM configuration for structured extraction"""
-    provider: Optional[str] = Field(None, description="LLM provider (openai, anthropic, etc.)")
-    model: Optional[str] = Field(None, description="Model name")
-    api_key: Optional[str] = Field(None, description="API key for LLM provider")
-    base_url: Optional[str] = Field(None, description="Base URL for LLM API")
-    params: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional params like temperature")
+    provider: Optional[str] = Field(None, description="LLM provider (openai, anthropic, groq, etc.). Uses DEFAULT_LLM_PROVIDER if not specified")
+    model: Optional[str] = Field(None, description="Model name (e.g., gpt-4, deepseek-chat, qwen-plus). Uses DEFAULT_LLM_MODEL if not specified")
+    api_key: Optional[str] = Field(None, description="API key for LLM provider. Required if DEFAULT_LLM_API_KEY not set")
+    base_url: Optional[str] = Field(None, description="Base URL for LLM API (for custom or Chinese LLM endpoints)")
+    params: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Additional parameters like temperature (0.0-1.0), max_tokens, etc.")
 
 
 class TaskConfigSchema(BaseModel):
     """Complete task configuration"""
-    name: str = Field(..., min_length=1, max_length=255)
-    description: Optional[str] = None
-    urls: List[str] = Field(..., min_items=1)
+    name: str = Field(..., min_length=1, max_length=255, description="Human-readable task name (required)")
+    description: Optional[str] = Field(None, description="Detailed description of what this task does")
+    urls: List[str] = Field(..., min_items=1, description="List of URLs to crawl (at least one required, must start with http:// or https://)")
     
     # Crawl configuration
-    crawl_config: Optional[CrawlConfigSchema] = Field(default_factory=CrawlConfigSchema)
+    crawl_config: Optional[CrawlConfigSchema] = Field(
+        default_factory=CrawlConfigSchema, 
+        description="crawl4ai-specific settings for JavaScript execution, wait conditions, selectors, etc."
+    )
     
     # LLM configuration
-    llm_provider: Optional[str] = None
-    llm_model: Optional[str] = None
-    llm_params: Optional[Dict[str, Any]] = None
-    prompt_template: Optional[str] = None
-    output_schema: Optional[Dict[str, Any]] = None
+    llm_provider: Optional[str] = Field(None, description="LLM provider (uses DEFAULT_LLM_PROVIDER if not specified)")
+    llm_model: Optional[str] = Field(None, description="Model name (uses DEFAULT_LLM_MODEL if not specified)")
+    llm_params: Optional[Dict[str, Any]] = Field(None, description="LLM parameters including api_key, base_url, temperature, max_tokens (merged with defaults)")
+    prompt_template: Optional[str] = Field(None, description="Instructions for LLM extraction. Can be inline text or reference like '@prompt_templates/news_article.txt'")
+    output_schema: Optional[Dict[str, Any]] = Field(None, description="JSON Schema defining expected structured output format")
     
     # Incremental rules
-    deduplication_enabled: bool = True
-    only_after_date: Optional[datetime] = None
+    deduplication_enabled: bool = Field(True, description="Skip URLs that have already been crawled for this task")
+    only_after_date: Optional[datetime] = Field(None, description="Only crawl content published after this date (ISO 8601 format)")
     
     # Fallback download
-    fallback_download_enabled: bool = True
-    fallback_max_size_mb: int = 10
+    fallback_download_enabled: bool = Field(True, description="Enable fallback download for media that crawl4ai couldn't retrieve")
+    fallback_max_size_mb: int = Field(10, description="Maximum file size in MB for fallback media downloads")
 
     @field_validator('urls')
     @classmethod

@@ -1,0 +1,46 @@
+# Step 2: Extract Details from Detail Pages
+# 使用Step 1提取的URLs来爬取详情页
+
+name: "提取详情页内容"
+description: "从详情页提取完整信息"
+
+# 这些URL应该从Step 1的结果中获取
+# 工作流：
+# 1. 运行Step 1获取run_id
+# 2. GET /api/runs/{run_id}/result 获取结果
+# 3. 从structured_data.items[].url提取所有URL
+# 4. 将URL列表填入下方urls字段
+# 5. 创建并运行Step 2任务
+urls:
+  - https://example.com/detail/1
+  - https://example.com/detail/2
+  - https://example.com/detail/3
+
+crawl_config:
+  verbose: true
+  wait_for: ".content, .detail"
+
+# LLM API Key配置（三种方式）：
+# 方式1：使用.env中的DEFAULT_LLM_API_KEY（推荐）
+# 方式2：在任务中明确指定
+# llm_params:
+#   api_key: "your-deepseek-api-key"
+#   base_url: "https://api.deepseek.com"
+# 方式3：使用不同的LLM
+# llm_provider: "openai"
+# llm_model: "gpt-4"
+# llm_params:
+#   api_key: "sk-your-openai-key"
+
+# 使用可复用的提示词模板
+# prompt和schema共同作用：
+# - prompt: 告诉LLM要提取什么信息
+# - schema: 告诉LLM以什么JSON格式返回
+prompt_template: "@prompt_templates/detail_page_extract_full.txt"
+
+# 使用可复用的输出结构
+output_schema: "@schemas/detail_page_full.json"
+
+deduplication_enabled: true
+fallback_download_enabled: true
+

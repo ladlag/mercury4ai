@@ -1,0 +1,44 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "标题或名称"
+    },
+    "price": {
+      "type": "string",
+      "description": "价格（如 ¥1,234.56）"
+    },
+    "description": {
+      "type": "string",
+      "description": "详细描述或正文内容"
+    },
+    "specifications": {
+      "type": "object",
+      "description": "规格参数或属性",
+      "additionalProperties": true
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date",
+      "description": "发布或更新日期 (YYYY-MM-DD)"
+    },
+    "author": {
+      "type": "string",
+      "description": "作者或发布者"
+    },
+    "images": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "图片URL列表（完整绝对路径）"
+    },
+    "metadata": {
+      "type": "object",
+      "description": "其他元数据",
+      "additionalProperties": true
+    }
+  },
+  "required": ["title", "description"]
+}

@@ -1,0 +1,47 @@
+{
+  "type": "object",
+  "properties": {
+    "title": {
+      "type": "string",
+      "description": "Paper title"
+    },
+    "authors": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "List of author names"
+    },
+    "abstract": {
+      "type": "string",
+      "description": "Paper abstract, cleaned and formatted"
+    },
+    "published_date": {
+      "type": "string",
+      "format": "date",
+      "description": "Publication date (YYYY-MM-DD format)"
+    },
+    "journal": {
+      "type": "string",
+      "description": "Journal or conference name"
+    },
+    "doi": {
+      "type": "string",
+      "description": "Digital Object Identifier"
+    },
+    "keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "3-5 main keywords",
+      "minItems": 3,
+      "maxItems": 5
+    },
+    "main_findings": {
+      "type": "string",
+      "description": "Summary of main findings in 2-3 sentences"
+    }
+  },
+  "required": ["title", "authors", "abstract"]
+}
