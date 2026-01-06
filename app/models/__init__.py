@@ -91,7 +91,7 @@ class Document(Base):
     structured_data = Column(JSON, nullable=True)  # LLM extracted structured data
     
     # Metadata
-    metadata = Column(JSON, nullable=True)
+    doc_metadata = Column(JSON, nullable=True)
     crawled_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # MinIO paths

@@ -85,7 +85,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         title=crawl_result.get('metadata', {}).get('title'),
                         content=crawl_result.get('markdown'),
                         structured_data=crawl_result.get('structured_data'),
-                        metadata=crawl_result.get('metadata'),
+                        doc_metadata=crawl_result.get('metadata'),
                     )
                     documents_created += 1
                     
