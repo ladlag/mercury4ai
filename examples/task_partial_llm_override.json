@@ -1,0 +1,37 @@
+{
+  "name": "Article Extraction with Partial LLM Override",
+  "description": "Uses default API key but overrides temperature and model",
+  "urls": [
+    "https://example.com/article1",
+    "https://example.com/article2"
+  ],
+  "crawl_config": {
+    "verbose": true,
+    "screenshot": false
+  },
+  "llm_model": "gpt-3.5-turbo",
+  "llm_params": {
+    "temperature": 0.3,
+    "max_tokens": 1000
+  },
+  "prompt_template": "Extract the title, author, and main content from this article. Return as JSON with fields: title, author, content.",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {
+        "type": "string"
+      },
+      "author": {
+        "type": "string"
+      },
+      "content": {
+        "type": "string"
+      }
+    },
+    "required": ["title", "content"]
+  },
+  "deduplication_enabled": true,
+  "only_after_date": null,
+  "fallback_download_enabled": true,
+  "fallback_max_size_mb": 10
+}

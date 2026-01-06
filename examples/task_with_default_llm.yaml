@@ -1,0 +1,52 @@
+name: News Extraction with Default LLM Config
+description: Extract news articles using default LLM configuration from environment
+urls:
+  - https://example.com/news/article1
+  - https://example.com/news/article2
+
+crawl_config:
+  verbose: true
+  screenshot: false
+
+# LLM config not specified - will use defaults from environment variables:
+# DEFAULT_LLM_PROVIDER, DEFAULT_LLM_MODEL, DEFAULT_LLM_API_KEY, etc.
+# Individual parameters can still be overridden if needed, for example:
+# llm_params:
+#   temperature: 0.2
+
+prompt_template: |
+  Extract the following information from this news article:
+  - Article title
+  - Author name
+  - Publication date
+  - Main content/body text
+  - Summary
+  
+  Return as structured JSON.
+
+output_schema:
+  type: object
+  properties:
+    title:
+      type: string
+      description: Article title
+    author:
+      type: string
+      description: Author name
+    published_date:
+      type: string
+      description: Publication date
+    content:
+      type: string
+      description: Main article content
+    summary:
+      type: string
+      description: Article summary
+  required:
+    - title
+    - content
+
+deduplication_enabled: true
+only_after_date: null
+fallback_download_enabled: true
+fallback_max_size_mb: 10

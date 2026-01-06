@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic import field_validator
 import logging
 
@@ -38,9 +38,13 @@ class Settings(BaseSettings):
     FALLBACK_DOWNLOAD_ENABLED: bool = True
     FALLBACK_DOWNLOAD_MAX_SIZE_MB: int = 10
     
-    # LLM Configuration
-    DEFAULT_LLM_PROVIDER: str = "openai"
-    DEFAULT_LLM_MODEL: str = "gpt-4"
+    # LLM Configuration (Optional defaults)
+    DEFAULT_LLM_PROVIDER: Optional[str] = "openai"
+    DEFAULT_LLM_MODEL: Optional[str] = "gpt-4"
+    DEFAULT_LLM_API_KEY: Optional[str] = None
+    DEFAULT_LLM_BASE_URL: Optional[str] = None
+    DEFAULT_LLM_TEMPERATURE: Optional[float] = None
+    DEFAULT_LLM_MAX_TOKENS: Optional[int] = None
     
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -67,6 +71,19 @@ class Settings(BaseSettings):
     @property
     def redis_url(self) -> str:
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+    
+    def get_default_llm_params(self) -> Optional[Dict[str, Any]]:
+        """Get default LLM parameters as a dictionary"""
+        params = {}
+        
+        if self.DEFAULT_LLM_API_KEY:
+            params['api_key'] = self.DEFAULT_LLM_API_KEY
+        if self.DEFAULT_LLM_TEMPERATURE is not None:
+            params['temperature'] = self.DEFAULT_LLM_TEMPERATURE
+        if self.DEFAULT_LLM_MAX_TOKENS is not None:
+            params['max_tokens'] = self.DEFAULT_LLM_MAX_TOKENS
+        
+        return params if params else None
 
 
 # Initialize settings

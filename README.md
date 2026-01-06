@@ -256,7 +256,32 @@ See `.env.example` for all configuration options:
 - `REDIS_*`: Redis configuration
 - `MINIO_*`: MinIO configuration
 - `FALLBACK_DOWNLOAD_*`: Fallback download settings
-- `DEFAULT_LLM_*`: Default LLM settings
+- `DEFAULT_LLM_*`: Default LLM settings (see below)
+
+### Default LLM Configuration
+
+You can set default LLM configuration in your environment variables to avoid repeating the same settings in every task:
+
+- `DEFAULT_LLM_PROVIDER`: Default LLM provider (e.g., "openai", "anthropic")
+- `DEFAULT_LLM_MODEL`: Default model name (e.g., "gpt-4", "gpt-3.5-turbo")
+- `DEFAULT_LLM_API_KEY`: Default API key for the LLM provider
+- `DEFAULT_LLM_BASE_URL`: Optional base URL for custom LLM endpoints
+- `DEFAULT_LLM_TEMPERATURE`: Optional default temperature setting
+- `DEFAULT_LLM_MAX_TOKENS`: Optional default max tokens setting
+
+**How it works:**
+- If a task doesn't specify LLM configuration, the defaults from environment variables are used
+- If a task specifies partial LLM configuration, it's merged with defaults (task values take precedence)
+- This makes it much easier to manage multiple tasks without repeating API keys
+
+**Example `.env` configuration:**
+```bash
+DEFAULT_LLM_PROVIDER=openai
+DEFAULT_LLM_MODEL=gpt-4
+DEFAULT_LLM_API_KEY=sk-your-api-key-here
+DEFAULT_LLM_TEMPERATURE=0.1
+DEFAULT_LLM_MAX_TOKENS=2000
+```
 
 ### Task Configuration
 
@@ -264,8 +289,10 @@ Each task supports:
 
 - **URLs**: List of URLs to crawl
 - **Crawl Config**: crawl4ai-specific settings (JS code, CSS selectors, etc.)
-- **LLM Config**: Provider, model, and parameters for extraction
-  - **Important**: Include your LLM API key in `llm_params`: `{"api_key": "sk-...", "temperature": 0.1}`
+- **LLM Config**: Provider, model, and parameters for extraction (optional - uses defaults if not specified)
+  - `llm_provider`: LLM provider (uses `DEFAULT_LLM_PROVIDER` if not specified)
+  - `llm_model`: Model name (uses `DEFAULT_LLM_MODEL` if not specified)
+  - `llm_params`: Additional parameters like API key, temperature, etc. (merged with defaults)
   - Supported providers: openai, anthropic, groq, etc.
 - **Prompt Template**: Instruction for LLM extraction
 - **Output Schema**: JSON Schema for structured output
@@ -275,17 +302,51 @@ Each task supports:
 
 ### LLM Extraction
 
-To use LLM-powered structured extraction:
+To use LLM-powered structured extraction, you have three options:
 
-1. Set `llm_provider` (e.g., "openai", "anthropic")
-2. Set `llm_model` (e.g., "gpt-4", "claude-3-opus")
-3. **Include API key in `llm_params`**: `{"api_key": "your-key-here", "temperature": 0.1}`
-4. Define `prompt_template` with extraction instructions
-5. Optionally define `output_schema` for structured JSON output
+#### Option 1: Use Default Configuration (Recommended)
 
-**Example with OpenAI:**
+Set default LLM config in `.env` and only specify prompt and schema in tasks:
+
 ```json
 {
+  "name": "Simple Task",
+  "urls": ["https://example.com"],
+  "prompt_template": "Extract the title and content...",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string"},
+      "content": {"type": "string"}
+    }
+  }
+}
+```
+
+#### Option 2: Partial Override
+
+Use defaults but override specific parameters:
+
+```json
+{
+  "name": "Custom Temperature Task",
+  "urls": ["https://example.com"],
+  "llm_model": "gpt-3.5-turbo",
+  "llm_params": {
+    "temperature": 0.3
+  },
+  "prompt_template": "Extract the title and content..."
+}
+```
+
+#### Option 3: Full Configuration
+
+Specify complete LLM configuration in the task (original method):
+
+```json
+{
+  "name": "Fully Configured Task",
+  "urls": ["https://example.com"],
   "llm_provider": "openai",
   "llm_model": "gpt-4",
   "llm_params": {
@@ -293,7 +354,7 @@ To use LLM-powered structured extraction:
     "temperature": 0.1,
     "max_tokens": 2000
   },
-  "prompt_template": "Extract the title and main content...",
+  "prompt_template": "Extract the title and content...",
   "output_schema": {
     "type": "object",
     "properties": {

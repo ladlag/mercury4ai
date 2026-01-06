@@ -9,10 +9,49 @@ import uuid
 
 from app.core.database import SessionLocal
 from app.core.minio_client import minio_client
+from app.core.config import settings
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
 
 logger = logging.getLogger(__name__)
+
+
+def merge_llm_config(task) -> Dict[str, Any]:
+    """
+    Merge task-specific LLM config with default config from settings.
+    Task-specific config takes precedence over defaults.
+    
+    Args:
+        task: CrawlTask instance
+    
+    Returns:
+        Dictionary with merged LLM configuration or None if no LLM config is available
+    """
+    # If task has provider and model, use task config
+    llm_provider = task.llm_provider or settings.DEFAULT_LLM_PROVIDER
+    llm_model = task.llm_model or settings.DEFAULT_LLM_MODEL
+    
+    # Check if we have enough info to use LLM
+    if not llm_provider or not llm_model:
+        return None
+    
+    # Start with default params from settings
+    default_params = settings.get_default_llm_params() or {}
+    
+    # Merge with task-specific params (task params override defaults)
+    task_params = task.llm_params or {}
+    merged_params = {**default_params, **task_params}
+    
+    # Check if we have an API key (required for LLM)
+    if not merged_params.get('api_key'):
+        logger.warning(f"No API key found for LLM provider {llm_provider}. LLM extraction will be skipped.")
+        return None
+    
+    return {
+        'provider': llm_provider,
+        'model': llm_model,
+        'params': merged_params,
+    }
 
 
 async def execute_crawl_task_async(task_id: str, run_id: str):
@@ -37,14 +76,8 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         
         logger.info(f"Starting crawl task {task_id}, run {run_id}")
         
-        # Prepare LLM config if provided
-        llm_config = None
-        if task.llm_provider and task.llm_model:
-            llm_config = {
-                'provider': task.llm_provider,
-                'model': task.llm_model,
-                'params': task.llm_params or {},
-            }
+        # Prepare LLM config using defaults if task config is incomplete
+        llm_config = merge_llm_config(task)
         
         # Statistics
         urls_crawled = 0
