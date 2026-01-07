@@ -1,7 +1,6 @@
 import asyncio
 from crawl4ai import AsyncWebCrawler, CacheMode, BrowserConfig
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
-from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, date
@@ -10,6 +9,15 @@ import json
 import httpx
 from urllib.parse import urlparse
 import uuid
+
+# Try to import markdown generation strategy (may not be available in all versions)
+try:
+    from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+    MARKDOWN_GENERATOR_AVAILABLE = True
+except ImportError:
+    MARKDOWN_GENERATOR_AVAILABLE = False
+    logger_temp = logging.getLogger(__name__)
+    logger_temp.debug("DefaultMarkdownGenerator not available in this crawl4ai version")
 
 logger = logging.getLogger(__name__)
 
@@ -174,14 +182,17 @@ class CrawlerService:
             
             # Configure markdown generator to get both raw and fit (cleaned) versions
             # This enables crawl4ai's built-in cleaning (Stage 1 cleaning)
-            try:
-                markdown_generator = DefaultMarkdownGenerator(
-                    content_filter=None  # Will generate both raw and fit markdown
-                )
-                crawl_params['markdown_generator'] = markdown_generator
-                logger.debug("Markdown generator configured for both raw and fit markdown")
-            except Exception as e:
-                logger.warning(f"Could not configure markdown generator: {e}. Will use default markdown generation.")
+            if MARKDOWN_GENERATOR_AVAILABLE:
+                try:
+                    markdown_generator = DefaultMarkdownGenerator(
+                        content_filter=None  # Will generate both raw and fit markdown
+                    )
+                    crawl_params['markdown_generator'] = markdown_generator
+                    logger.debug("Markdown generator configured for both raw and fit markdown")
+                except Exception as e:
+                    logger.warning(f"Could not configure markdown generator: {e}. Will use default markdown generation.")
+            else:
+                logger.debug("DefaultMarkdownGenerator not available - using default markdown generation")
             
             # Add optional parameters
             # Note: verbose parameter no longer supported in crawl4ai 0.7.8+
@@ -281,6 +292,11 @@ class CrawlerService:
             # Extract both raw and fit (cleaned) markdown versions
             # fit_markdown has headers, footers, navigation removed by crawl4ai
             markdown_versions = extract_markdown_versions(result.markdown)
+            
+            # Check if result has fit_markdown directly (crawl4ai 0.7.8+)
+            if hasattr(result, 'fit_markdown') and result.fit_markdown:
+                markdown_versions['fit'] = result.fit_markdown
+                logger.debug(f"Using result.fit_markdown directly: {len(result.fit_markdown)} characters")
             
             if markdown_versions['raw']:
                 logger.debug(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
