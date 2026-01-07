@@ -249,10 +249,10 @@ class DocumentService:
 class URLRegistryService:
     @staticmethod
     def is_url_crawled(db: Session, url: str, task_id: str) -> bool:
-        """Check if URL has been crawled for this task"""
+        """Check if URL has been crawled (globally, not just for this task)"""
+        # Query only by URL since the registry is global
         registry = db.query(CrawledUrlRegistry).filter(
-            CrawledUrlRegistry.url == url,
-            CrawledUrlRegistry.task_id == task_id
+            CrawledUrlRegistry.url == url
         ).first()
         return registry is not None
     
