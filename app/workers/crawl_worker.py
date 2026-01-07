@@ -21,8 +21,7 @@ from app.services.crawler_service import CrawlerService, download_resource, gene
 # This ensures that all application logs are visible when worker processes tasks
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s | %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     stream=sys.stdout,
     force=True  # Override any existing configuration
 )
