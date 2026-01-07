@@ -9,6 +9,7 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 - **FastAPI RESTful API** with API Key authentication
 - **Task Queue Processing** using RQ and Redis
 - **LLM-Powered Extraction** via crawl4ai with schema-based structured output
+- **Automatic Content Cleaning** - Removes navigation, headers, footers, and sidebars from crawled content
 - **Chinese LLM Support** - DeepSeek (深度求索), Qwen (通义千问), ERNIE (文心一言)
 - **PostgreSQL Storage** for tasks, runs, and documents
 - **MinIO Object Storage** for artifacts (markdown, JSON, images, attachments, logs)
@@ -230,6 +231,42 @@ When URLs fail to crawl, detailed error information is saved to `error_log.json`
 
 The `run_manifest.json` also includes an error summary with the first 5 errors for quick reference.
 
+### Automatic Content Cleaning
+
+Mercury4AI automatically cleans crawled content to remove noise and extract the main content:
+
+**What gets cleaned:**
+- Navigation menus and breadcrumbs
+- Site headers and footers
+- Sidebar elements (hot topics, related links, etc.)
+- Logo and icon images
+- ICP and legal notices
+- Metadata lines (time stamps, font selectors, etc.)
+
+**Output files generated:**
+- `{documentId}.md` - Original markdown from crawl4ai
+- `{documentId}_cleaned.md` - Cleaned markdown (typically 70-90% smaller)
+- `{documentId}.json` - LLM-extracted structured data (if LLM is configured)
+- `{documentId}_cleaned.json` - Cleaned content with metadata and statistics
+
+**Example cleaning results:**
+```
+Original content: 1,951 characters (with navigation, footers, sidebars)
+Cleaned content:   289 characters (main article content only)
+Reduction:         85.2%
+```
+
+**Cleaning logs:**
+The worker logs show detailed cleaning information:
+```
+Starting markdown cleaning for document {id}
+Cleaning statistics: {'original_length': 1951, 'cleaned_length': 289, 'reduction_percent': 85.19}
+Saved cleaned markdown to MinIO: {path}
+Saved cleaned JSON to MinIO: {path}
+```
+
+All cleaned files are automatically saved to MinIO and referenced in the resource index.
+
 ### Example Task Configurations
 
 See the `examples/` directory for sample task configurations:
@@ -281,18 +318,23 @@ mercury4ai/
 └── {YYYY-MM-DD}/
     └── {runId}/
         ├── json/
-        │   └── {documentId}.json          # Structured data
+        │   ├── {documentId}.json              # Structured data (LLM-extracted)
+        │   └── {documentId}_cleaned.json      # Cleaned content JSON
         ├── markdown/
-        │   └── {documentId}.md            # Markdown content
+        │   ├── {documentId}.md                # Original markdown
+        │   └── {documentId}_cleaned.md        # Cleaned markdown (navigation/footers removed)
         ├── images/
         │   ├── {filename}.jpg
         │   └── {filename}.png
         ├── attachments/
         │   └── {filename}.pdf
         └── logs/
-            ├── run_manifest.json          # Run metadata
-            └── resource_index.json        # Resource catalog
+            ├── run_manifest.json              # Run metadata
+            ├── resource_index.json            # Resource catalog
+            └── error_log.json                 # Error log (if any)
 ```
+
+**Note**: The system automatically generates cleaned versions of markdown content by removing navigation menus, headers, footers, and sidebar elements, typically achieving 70-90% size reduction while preserving the main content.
 
 ## Database Schema
 
