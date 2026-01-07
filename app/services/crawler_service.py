@@ -51,6 +51,45 @@ def extract_markdown_string(markdown_result: Any) -> Optional[str]:
         return None
 
 
+def extract_markdown_versions(markdown_result: Any) -> Dict[str, Optional[str]]:
+    """
+    Extract both raw and fit (cleaned) markdown from crawl4ai result.
+    
+    fit_markdown is the cleaned version with headers, footers, and navigation removed by crawl4ai.
+    raw_markdown is the original full markdown.
+    
+    Args:
+        markdown_result: The markdown field from crawl4ai result
+    
+    Returns:
+        Dictionary with 'raw' and 'fit' keys containing respective markdown versions
+    """
+    result = {'raw': None, 'fit': None}
+    
+    if markdown_result is None:
+        return result
+    
+    # If it's already a string, use it for both
+    if isinstance(markdown_result, str):
+        result['raw'] = markdown_result
+        result['fit'] = markdown_result
+        return result
+    
+    # If it's a MarkdownGenerationResult object, extract both versions
+    if hasattr(markdown_result, 'raw_markdown'):
+        result['raw'] = markdown_result.raw_markdown
+    if hasattr(markdown_result, 'fit_markdown'):
+        result['fit'] = markdown_result.fit_markdown
+    
+    # If we don't have both, use what we have for both
+    if result['raw'] and not result['fit']:
+        result['fit'] = result['raw']
+    elif result['fit'] and not result['raw']:
+        result['raw'] = result['fit']
+    
+    return result
+
+
 # Provider configurations for Chinese LLM providers
 CHINESE_LLM_PROVIDERS = {
     'qwen': {
@@ -214,20 +253,21 @@ class CrawlerService:
             
             logger.info(f"Crawl completed successfully for: {url}")
             
-            # Extract data
-            # Handle markdown properly - it can be a string or MarkdownGenerationResult object
-            markdown_content = extract_markdown_string(result.markdown)
+            # Extract both raw and fit (cleaned) markdown versions
+            # fit_markdown has headers, footers, navigation removed by crawl4ai
+            markdown_versions = extract_markdown_versions(result.markdown)
             
-            if markdown_content:
-                logger.debug(f"Extracted markdown content: {len(markdown_content)} characters")
-            else:
-                logger.warning(f"No markdown content extracted for {url}")
+            if markdown_versions['raw']:
+                logger.debug(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
+            if markdown_versions['fit']:
+                logger.debug(f"Extracted fit markdown (cleaned by crawl4ai): {len(markdown_versions['fit'])} characters")
             
             crawl_result = {
                 'success': True,
                 'url': url,
                 'html': result.html,
-                'markdown': markdown_content,
+                'markdown': markdown_versions['raw'],  # Original markdown
+                'markdown_fit': markdown_versions['fit'],  # Cleaned markdown (first pass by crawl4ai)
                 'cleaned_html': result.cleaned_html,
                 'metadata': {
                     'title': getattr(result, 'title', None),

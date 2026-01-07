@@ -8,6 +8,9 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 
 - **FastAPI RESTful API** with API Key authentication
 - **Task Queue Processing** using RQ and Redis
+- **Two-Stage Content Cleaning**:
+  - **Stage 1**: Crawl4ai automatically removes headers, footers, and navigation
+  - **Stage 2**: LLM extraction with custom prompts and JSON schemas per task
 - **LLM-Powered Extraction** via crawl4ai with schema-based structured output
 - **Chinese LLM Support** - DeepSeek (深度求索), Qwen (通义千问), ERNIE (文心一言)
 - **PostgreSQL Storage** for tasks, runs, and documents
@@ -281,18 +284,29 @@ mercury4ai/
 └── {YYYY-MM-DD}/
     └── {runId}/
         ├── json/
-        │   └── {documentId}.json          # Structured data
+        │   └── {documentId}.json              # LLM-extracted structured data (Stage 2)
         ├── markdown/
-        │   └── {documentId}.md            # Markdown content
+        │   ├── {documentId}.md                # Raw markdown (original)
+        │   └── {documentId}_cleaned.md        # Cleaned markdown (Stage 1 by crawl4ai)
         ├── images/
         │   ├── {filename}.jpg
         │   └── {filename}.png
         ├── attachments/
         │   └── {filename}.pdf
         └── logs/
-            ├── run_manifest.json          # Run metadata
-            └── resource_index.json        # Resource catalog
+            ├── run_manifest.json              # Run metadata
+            └── resource_index.json            # Resource catalog
 ```
+
+### Two-Stage Content Cleaning
+
+Mercury4AI uses a two-stage approach for content cleaning:
+
+1. **Stage 1 - Crawl4ai Built-in Cleaning**: Automatically removes headers, footers, navigation menus, and boilerplate content. The result is saved as `{documentId}_cleaned.md` (fit_markdown).
+
+2. **Stage 2 - LLM Extraction**: Uses external LLM with custom prompt and JSON schema (specified per task) to extract and structure specific content. The result is saved as `{documentId}.json`.
+
+This approach leverages crawl4ai's powerful built-in cleaning capabilities for the first pass, then applies task-specific LLM extraction for precise structured data extraction.
 
 ## Database Schema
 

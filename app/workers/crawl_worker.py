@@ -285,9 +285,10 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
     """Save document content to MinIO and update document with paths"""
     try:
         markdown_path = None
+        markdown_fit_path = None
         json_path = None
         
-        # Save markdown
+        # Save raw markdown (original, unprocessed)
         if crawl_result.get('markdown'):
             markdown_path = generate_minio_path(
                 run_id, 'markdown', f"{document.id}.md"
@@ -297,21 +298,40 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 crawl_result['markdown'].encode('utf-8'),
                 'text/markdown'
             )
-            logger.info(f"Saved markdown to MinIO: {markdown_path}")
+            logger.info(f"Saved raw markdown to MinIO: {markdown_path}")
         else:
-            logger.warning(f"No markdown content to save for document {document.id}")
+            logger.warning(f"No raw markdown content to save for document {document.id}")
         
-        # Save structured data as JSON
+        # Save fit markdown (cleaned by crawl4ai - first-level cleaning)
+        if crawl_result.get('markdown_fit'):
+            markdown_fit_path = generate_minio_path(
+                run_id, 'markdown', f"{document.id}_cleaned.md"
+            )
+            minio_client.upload_data(
+                markdown_fit_path,
+                crawl_result['markdown_fit'].encode('utf-8'),
+                'text/markdown'
+            )
+            logger.info(f"Saved cleaned markdown (fit) to MinIO: {markdown_fit_path}")
+            
+            # Log cleaning statistics
+            if crawl_result.get('markdown'):
+                original_len = len(crawl_result['markdown'])
+                cleaned_len = len(crawl_result['markdown_fit'])
+                reduction = ((original_len - cleaned_len) / original_len * 100) if original_len > 0 else 0
+                logger.info(f"Crawl4ai cleaning: {original_len} -> {cleaned_len} chars (reduced {reduction:.1f}%)")
+        
+        # Save structured data as JSON (second-level cleaning by LLM with custom schema)
         if crawl_result.get('structured_data'):
             json_path = generate_minio_path(
                 run_id, 'json', f"{document.id}.json"
             )
             minio_client.upload_data(
                 json_path,
-                json.dumps(crawl_result['structured_data'], indent=2).encode('utf-8'),
+                json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8'),
                 'application/json'
             )
-            logger.info(f"Saved structured data to MinIO: {json_path}")
+            logger.info(f"Saved structured data (LLM extraction) to MinIO: {json_path}")
         
         # Save screenshot if available
         if crawl_result.get('screenshot'):
