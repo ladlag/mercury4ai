@@ -16,7 +16,6 @@ from app.core.config import settings
 from app.models import CrawlTask, Document
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
-from app.services.content_cleaner import content_cleaner
 
 # Configure logging for RQ workers
 # This ensures that all application logs are visible when worker processes tasks
@@ -106,9 +105,6 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # Track detailed errors for each URL
         error_details = []
         
-        # Track cleaned file paths for each document (for resource index)
-        document_cleaned_paths = {}  # document_id -> {'cleaned_markdown': path, 'cleaned_json': path}
-        
         # Get verbose setting from crawl_config for backward compatibility
         # Note: In crawl4ai 0.7.8+, verbose is no longer passed to the crawler.
         # Logging verbosity is now controlled by Python logging configuration (see module-level logging.basicConfig).
@@ -166,13 +162,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                     # Save to MinIO and update document with paths
                     logger.debug(f"Saving document artifacts to MinIO for {url}")
-                    cleaned_paths = await save_document_to_minio(
+                    await save_document_to_minio(
                         db, run_id, document, crawl_result
                     )
-                    
-                    # Track cleaned paths for resource index
-                    if cleaned_paths:
-                        document_cleaned_paths[document.id] = cleaned_paths
                     
                     # Process images
                     images = crawl_result.get('media', {}).get('images', [])
@@ -218,8 +210,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         resource_index = generate_resource_index(
             db=db,
             run_id=run_id,
-            has_errors=bool(error_details),
-            document_cleaned_paths=document_cleaned_paths
+            has_errors=bool(error_details)
         )
         
         # Save manifest and index to MinIO
@@ -290,20 +281,14 @@ def execute_crawl_task(task_id: str, run_id: str):
     asyncio.run(execute_crawl_task_async(task_id, run_id))
 
 
-async def save_document_to_minio(db: Session, run_id: str, document: Document, crawl_result: Dict[str, Any]) -> Optional[Dict[str, str]]:
-    """
-    Save document content to MinIO and update document with paths
-    
-    Returns:
-        Dictionary with cleaned file paths if cleaning was successful, None otherwise
-    """
+async def save_document_to_minio(db: Session, run_id: str, document: Document, crawl_result: Dict[str, Any]):
+    """Save document content to MinIO and update document with paths"""
     try:
         markdown_path = None
+        markdown_fit_path = None
         json_path = None
-        cleaned_markdown_path = None
-        cleaned_json_path = None
         
-        # Save original markdown
+        # Save raw markdown (original, unprocessed)
         if crawl_result.get('markdown'):
             markdown_path = generate_minio_path(
                 run_id, 'markdown', f"{document.id}.md"
@@ -313,50 +298,30 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 crawl_result['markdown'].encode('utf-8'),
                 'text/markdown'
             )
-            logger.info(f"Saved markdown to MinIO: {markdown_path}")
-            
-            # Clean markdown and save cleaned version
-            logger.info(f"Starting markdown cleaning for document {document.id}")
-            cleaning_result = content_cleaner.clean_markdown(
-                crawl_result['markdown'],
-                metadata=crawl_result.get('metadata')
-            )
-            
-            if cleaning_result['cleaned_markdown']:
-                cleaned_markdown_path = generate_minio_path(
-                    run_id, 'markdown', f"{document.id}_cleaned.md"
-                )
-                minio_client.upload_data(
-                    cleaned_markdown_path,
-                    cleaning_result['cleaned_markdown'].encode('utf-8'),
-                    'text/markdown'
-                )
-                logger.info(f"Saved cleaned markdown to MinIO: {cleaned_markdown_path}")
-                logger.info(f"Cleaning statistics: {cleaning_result['statistics']}")
-                
-                # Generate and save cleaned JSON
-                logger.info(f"Generating cleaned JSON for document {document.id}")
-                cleaned_json = content_cleaner.generate_cleaned_json(
-                    cleaning_result['cleaned_markdown'],
-                    metadata=crawl_result.get('metadata'),
-                    structured_data=crawl_result.get('structured_data')
-                )
-                
-                cleaned_json_path = generate_minio_path(
-                    run_id, 'json', f"{document.id}_cleaned.json"
-                )
-                minio_client.upload_data(
-                    cleaned_json_path,
-                    json.dumps(cleaned_json, indent=2, ensure_ascii=False).encode('utf-8'),
-                    'application/json'
-                )
-                logger.info(f"Saved cleaned JSON to MinIO: {cleaned_json_path}")
-            else:
-                logger.warning(f"Markdown cleaning produced empty result for document {document.id}")
+            logger.info(f"Saved raw markdown to MinIO: {markdown_path}")
         else:
-            logger.warning(f"No markdown content to save for document {document.id}")
+            logger.warning(f"No raw markdown content to save for document {document.id}")
         
-        # Save structured data as JSON (from LLM extraction)
+        # Save fit markdown (cleaned by crawl4ai - first-level cleaning)
+        if crawl_result.get('markdown_fit'):
+            markdown_fit_path = generate_minio_path(
+                run_id, 'markdown', f"{document.id}_cleaned.md"
+            )
+            minio_client.upload_data(
+                markdown_fit_path,
+                crawl_result['markdown_fit'].encode('utf-8'),
+                'text/markdown'
+            )
+            logger.info(f"Saved cleaned markdown (fit) to MinIO: {markdown_fit_path}")
+            
+            # Log cleaning statistics
+            if crawl_result.get('markdown'):
+                original_len = len(crawl_result['markdown'])
+                cleaned_len = len(crawl_result['markdown_fit'])
+                reduction = ((original_len - cleaned_len) / original_len * 100) if original_len > 0 else 0
+                logger.info(f"Crawl4ai cleaning: {original_len} -> {cleaned_len} chars (reduced {reduction:.1f}%)")
+        
+        # Save structured data as JSON (second-level cleaning by LLM with custom schema)
         if crawl_result.get('structured_data'):
             json_path = generate_minio_path(
                 run_id, 'json', f"{document.id}.json"
@@ -366,7 +331,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8'),
                 'application/json'
             )
-            logger.info(f"Saved structured data to MinIO: {json_path}")
+            logger.info(f"Saved structured data (LLM extraction) to MinIO: {json_path}")
         
         # Save screenshot if available
         if crawl_result.get('screenshot'):
@@ -405,20 +370,9 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             db.commit()
             db.refresh(document)
             logger.debug(f"Updated document {document.id} with MinIO paths")
-        
-        # Return cleaned paths for tracking in resource index
-        # Only include paths that were actually created
-        cleaned_paths_dict = {}
-        if cleaned_markdown_path:
-            cleaned_paths_dict['cleaned_markdown'] = cleaned_markdown_path
-        if cleaned_json_path:
-            cleaned_paths_dict['cleaned_json'] = cleaned_json_path
-        
-        return cleaned_paths_dict if cleaned_paths_dict else None
             
     except Exception as e:
         logger.error(f"Error saving document to MinIO: {str(e)}", exc_info=True)
-        return None
 
 
 async def process_image(
@@ -550,33 +504,25 @@ def generate_run_manifest(
     return manifest
 
 
-def generate_resource_index(db, run_id: str, has_errors: bool = False, document_cleaned_paths: Optional[Dict[str, Dict[str, str]]] = None) -> Dict[str, Any]:
+def generate_resource_index(db, run_id: str, has_errors: bool = False) -> Dict[str, Any]:
     """Generate resource index for run"""
     documents = RunService.get_run_documents(db, run_id)
     images = RunService.get_run_images(db, run_id)
     attachments = RunService.get_run_attachments(db, run_id)
     
-    # Use provided cleaned paths or empty dict
-    cleaned_paths = document_cleaned_paths or {}
-    
-    # Helper function to build document entry
-    def build_document_entry(doc):
-        doc_cleaned = cleaned_paths.get(doc.id, {})
-        return {
-            'id': doc.id,
-            'source_url': doc.source_url,
-            'title': doc.title,
-            'markdown_path': doc.markdown_path,
-            'json_path': doc.json_path,
-            # Add paths for cleaned versions if they exist
-            'cleaned_markdown_path': doc_cleaned.get('cleaned_markdown'),
-            'cleaned_json_path': doc_cleaned.get('cleaned_json'),
-        }
-    
     index = {
         'run_id': run_id,
         'generated_at': datetime.utcnow().isoformat(),
-        'documents': [build_document_entry(doc) for doc in documents],
+        'documents': [
+            {
+                'id': doc.id,
+                'source_url': doc.source_url,
+                'title': doc.title,
+                'markdown_path': doc.markdown_path,
+                'json_path': doc.json_path,
+            }
+            for doc in documents
+        ],
         'images': [
             {
                 'id': img.id,
