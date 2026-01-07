@@ -46,8 +46,8 @@ def extract_markdown_string(markdown_result):
     # Last resort: try to convert to string
     try:
         return str(markdown_result)
-    except Exception:
-        logger.warning(f"Unable to extract markdown from result type: {type(markdown_result)}")
+    except (TypeError, AttributeError, ValueError) as e:
+        logger.warning(f"Unable to extract markdown from result type {type(markdown_result)}: {e}")
         return None
 
 
