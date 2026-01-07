@@ -1,6 +1,7 @@
 import asyncio
 from crawl4ai import AsyncWebCrawler, CacheMode, BrowserConfig
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
+from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
 from typing import Dict, Any, List, Optional
 import logging
 from datetime import datetime, date
@@ -171,6 +172,17 @@ class CrawlerService:
                 'cache_mode': CacheMode.BYPASS,
             }
             
+            # Configure markdown generator to get both raw and fit (cleaned) versions
+            # This enables crawl4ai's built-in cleaning (Stage 1 cleaning)
+            try:
+                markdown_generator = DefaultMarkdownGenerator(
+                    content_filter=None  # Will generate both raw and fit markdown
+                )
+                crawl_params['markdown_generator'] = markdown_generator
+                logger.debug("Markdown generator configured for both raw and fit markdown")
+            except Exception as e:
+                logger.warning(f"Could not configure markdown generator: {e}. Will use default markdown generation.")
+            
             # Add optional parameters
             # Note: verbose parameter no longer supported in crawl4ai 0.7.8+
             if crawl_config.get('js_code'):
@@ -189,16 +201,23 @@ class CrawlerService:
                 crawl_params['pdf'] = True
                 logger.debug("PDF generation enabled")
             
-            # Configure LLM extraction if provided
+            # Configure LLM extraction if provided (Stage 2 cleaning)
             if llm_config and prompt_template:
                 provider = llm_config.get('provider', 'openai')
                 model = llm_config.get('model', 'gpt-4')
                 params = llm_config.get('params', {})
                 
                 logger.info(f"Configuring LLM extraction with provider={provider}, model={model}")
+                logger.debug(f"Prompt template length: {len(prompt_template)} chars")
+                logger.debug(f"Output schema provided: {output_schema is not None}")
                 
                 # Extract API key from params (it's stored in task.llm_params)
                 api_key = params.get('api_key')
+                
+                if not api_key:
+                    logger.warning(f"No API key provided for LLM extraction. LLM extraction will be skipped.")
+                else:
+                    logger.debug(f"API key present: {api_key[:10]}...")
                 
                 # Handle Chinese LLM providers
                 provider_lower = provider.lower()
@@ -238,6 +257,12 @@ class CrawlerService:
                 
                 crawl_params['extraction_strategy'] = extraction_strategy
                 logger.info("LLM extraction strategy configured successfully")
+            else:
+                # Log why LLM extraction is not being used
+                if not llm_config:
+                    logger.info("No LLM config provided - skipping structured extraction")
+                elif not prompt_template:
+                    logger.warning("LLM config present but no prompt_template provided - skipping structured extraction")
             
             # Execute crawl
             logger.info(f"Executing crawl for: {url}")
