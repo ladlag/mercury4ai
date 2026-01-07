@@ -3,8 +3,10 @@ from sqlalchemy.orm import Session
 from app.core.database import get_db
 from app.core.auth import verify_api_key
 from app.core.redis_client import get_redis_client
+from app.core.minio_client import minio_client
 from app.schemas import TaskRunResponse, RunResultResponse, DocumentResponse, DocumentImageResponse, DocumentAttachmentResponse
 from app.services.task_service import TaskService, RunService
+from app.services.crawler_service import generate_minio_path
 from rq import Queue
 from rq.job import Job
 import logging
@@ -109,17 +111,30 @@ async def get_run_logs(
     if not run.logs_path:
         raise HTTPException(status_code=404, detail="Logs not available")
     
-    # Return MinIO paths
-    from app.core.minio_client import minio_client
-    
     manifest_url = None
     if run.manifest_path:
         manifest_url = minio_client.get_presigned_url(run.manifest_path)
     
-    return {
+    # Generate error log URL if errors occurred
+    # Note: error_log.json is only created when error_details exists,
+    # which happens whenever urls_failed is incremented in the worker
+    error_log_url = None
+    if run.urls_failed > 0:
+        error_log_path = generate_minio_path(run.id, 'logs', 'error_log.json')
+        # Try to generate presigned URL for error log
+        error_log_url = minio_client.get_presigned_url(error_log_path)
+        # get_presigned_url returns None if the file doesn't exist or there's an error
+    
+    response = {
         "run_id": run_id,
         "logs_path": run.logs_path,
         "minio_path": run.minio_path,
         "manifest_url": manifest_url,
         "message": "Use manifest_url to download run_manifest.json, or access MinIO directly"
     }
+    
+    if error_log_url:
+        response["error_log_url"] = error_log_url
+        response["message"] += ". Error log available at error_log_url"
+    
+    return response

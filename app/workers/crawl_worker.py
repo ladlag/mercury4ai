@@ -85,6 +85,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         urls_failed = 0
         documents_created = 0
         
+        # Track detailed errors for each URL
+        error_details = []
+        
         # Process each URL
         async with CrawlerService() as crawler:
             for url in task.urls:
@@ -106,7 +109,13 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                     if not crawl_result['success']:
                         urls_failed += 1
-                        logger.error(f"Failed to crawl {url}: {crawl_result.get('error')}")
+                        error_msg = crawl_result.get('error', 'Unknown error')
+                        logger.error(f"Failed to crawl {url}: {error_msg}")
+                        error_details.append({
+                            'url': url,
+                            'error': error_msg,
+                            'timestamp': datetime.utcnow().isoformat()
+                        })
                         continue
                     
                     urls_crawled += 1
@@ -144,11 +153,28 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                 except Exception as e:
                     urls_failed += 1
-                    logger.error(f"Error processing URL {url}: {str(e)}", exc_info=True)
+                    error_msg = str(e)
+                    logger.error(f"Error processing URL {url}: {error_msg}", exc_info=True)
+                    error_details.append({
+                        'url': url,
+                        'error': error_msg,
+                        'timestamp': datetime.utcnow().isoformat()
+                    })
         
         # Generate run manifest and resource index
-        manifest = generate_run_manifest(run_id, task, urls_crawled, urls_failed, documents_created)
-        resource_index = generate_resource_index(db, run_id)
+        manifest = generate_run_manifest(
+            run_id=run_id,
+            task=task,
+            urls_crawled=urls_crawled,
+            urls_failed=urls_failed,
+            documents_created=documents_created,
+            error_details=error_details
+        )
+        resource_index = generate_resource_index(
+            db=db,
+            run_id=run_id,
+            has_errors=bool(error_details)
+        )
         
         # Save manifest and index to MinIO
         manifest_path = generate_minio_path(run_id, 'logs', 'run_manifest.json')
@@ -164,6 +190,23 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             json.dumps(resource_index, indent=2, default=str).encode('utf-8'),
             'application/json'
         )
+        
+        # Save error log if there are any errors
+        if error_details:
+            error_log_path = generate_minio_path(run_id, 'logs', 'error_log.json')
+            error_log = {
+                'run_id': run_id,
+                'task_id': task_id,
+                'generated_at': datetime.utcnow().isoformat(),
+                'total_errors': len(error_details),
+                'errors': error_details
+            }
+            minio_client.upload_data(
+                error_log_path,
+                json.dumps(error_log, indent=2, default=str).encode('utf-8'),
+                'application/json'
+            )
+            logger.info(f"Saved error log for run {run_id} with {len(error_details)} errors")
         
         # Update run with results
         today = datetime.utcnow().strftime('%Y-%m-%d')
@@ -321,10 +364,16 @@ async def process_image(
 
 
 def generate_run_manifest(
-    run_id: str, task, urls_crawled: int, urls_failed: int, documents_created: int
+    run_id: str,
+    *,
+    task: CrawlTask,
+    urls_crawled: int,
+    urls_failed: int,
+    documents_created: int,
+    error_details: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """Generate run manifest"""
-    return {
+    manifest = {
         'run_id': run_id,
         'task_id': task.id,
         'task_name': task.name,
@@ -339,15 +388,25 @@ def generate_run_manifest(
             'llm_model': task.llm_model,
         }
     }
+    
+    # Include error summary if there are errors
+    if error_details:
+        manifest['errors'] = {
+            'total_errors': len(error_details),
+            'error_log_available': True,
+            'error_summary': error_details[:5]  # Include first 5 errors in manifest
+        }
+    
+    return manifest
 
 
-def generate_resource_index(db, run_id: str) -> Dict[str, Any]:
+def generate_resource_index(db, run_id: str, has_errors: bool = False) -> Dict[str, Any]:
     """Generate resource index for run"""
     documents = RunService.get_run_documents(db, run_id)
     images = RunService.get_run_images(db, run_id)
     attachments = RunService.get_run_attachments(db, run_id)
     
-    return {
+    index = {
         'run_id': run_id,
         'generated_at': datetime.utcnow().isoformat(),
         'documents': [
@@ -379,3 +438,10 @@ def generate_resource_index(db, run_id: str) -> Dict[str, Any]:
             for att in attachments
         ],
     }
+    
+    # Add error log reference if errors occurred
+    if has_errors:
+        index['error_log_available'] = True
+        index['error_log_path'] = generate_minio_path(run_id, 'logs', 'error_log.json')
+    
+    return index

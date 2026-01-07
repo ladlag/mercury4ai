@@ -3,6 +3,20 @@
 ## [Unreleased] - 2026-01-06
 
 ### Added
+- **Detailed Error Logging**: 
+  - Error details are now saved to `error_log.json` in MinIO for failed crawls
+  - Each error includes URL, error message, and timestamp
+  - `run_manifest.json` includes error summary with first 5 errors
+  - `resource_index.json` includes error log path when errors occur
+  - `/api/runs/{run_id}/logs` endpoint returns `error_log_url` for easy access
+  - Enables debugging of crawl failures without accessing container logs
+
+### Fixed
+- **crawl4ai 0.7.8 Compatibility**: 
+  - Removed explicit `verbose` parameter from crawler.arun() calls
+  - Fixes "got multiple values for keyword argument 'verbose'" error
+  - Crawls now work properly with crawl4ai 0.7.8
+
 - **CONFIG.md**: Comprehensive 500+ line configuration guide covering all options
   - Environment variables reference table
   - Task configuration details

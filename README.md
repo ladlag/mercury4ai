@@ -216,6 +216,20 @@ curl http://localhost:8000/api/runs/{run_id}/logs \
 
 Returns MinIO paths and presigned URLs for downloading artifacts.
 
+**Response includes:**
+- `manifest_url` - Presigned URL to download run_manifest.json
+- `error_log_url` - Presigned URL to download error_log.json (if any errors occurred)
+- `logs_path` - Path to logs directory in MinIO
+- `minio_path` - Base path for all run artifacts
+
+**Error Logging:**
+When URLs fail to crawl, detailed error information is saved to `error_log.json` in MinIO. The error log includes:
+- URL that failed
+- Error message
+- Timestamp of the failure
+
+The `run_manifest.json` also includes an error summary with the first 5 errors for quick reference.
+
 ### Example Task Configurations
 
 See the `examples/` directory for sample task configurations:
