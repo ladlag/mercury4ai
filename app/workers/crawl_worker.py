@@ -96,7 +96,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         error_details = []
         
         # Get verbose setting from crawl_config (default to True for detailed logs)
-        verbose = task.crawl_config.get('verbose', True) if task.crawl_config else True
+        verbose = (task.crawl_config or {}).get('verbose', True)
         logger.info(f"Verbose logging enabled: {verbose}")
         
         # Process each URL
@@ -133,7 +133,6 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         continue
                     
                     urls_crawled += 1
-                    logger.info(f"Successfully crawled URL {idx}/{len(task.urls)}: {url}")
                     
                     # Save document to database
                     logger.debug(f"Saving document to database for {url}")
@@ -170,6 +169,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     # Register URL as crawled
                     URLRegistryService.register_url(db, url, task_id)
                     
+                    # Log success once at the end
                     logger.info(f"Successfully processed URL {idx}/{len(task.urls)}: {url}")
                     
                 except Exception as e:

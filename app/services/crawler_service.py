@@ -69,26 +69,30 @@ CHINESE_LLM_PROVIDERS = {
 
 
 class CrawlerService:
-    def __init__(self, verbose: bool = True):
+    def __init__(self, verbose: bool = True, browser_type: str = "chromium", headless: bool = True):
         """
         Initialize CrawlerService
         
         Args:
             verbose: Enable verbose logging for crawl operations (default: True)
+            browser_type: Browser type to use (default: "chromium", options: "chromium", "firefox", "webkit")
+            headless: Run browser in headless mode (default: True)
         """
         self.crawler = None
         self.verbose = verbose
+        self.browser_type = browser_type
+        self.headless = headless
     
     async def __aenter__(self):
         """Context manager entry"""
         # Configure browser with verbose logging
         browser_config = BrowserConfig(
-            browser_type="chromium",
-            headless=True,
+            browser_type=self.browser_type,
+            headless=self.headless,
             verbose=self.verbose
         )
         self.crawler = await AsyncWebCrawler(config=browser_config).__aenter__()
-        logger.info(f"AsyncWebCrawler initialized with verbose={self.verbose}")
+        logger.info(f"AsyncWebCrawler initialized with verbose={self.verbose}, browser_type={self.browser_type}, headless={self.headless}")
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
