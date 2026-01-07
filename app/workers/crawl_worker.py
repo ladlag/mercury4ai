@@ -407,12 +407,14 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             logger.debug(f"Updated document {document.id} with MinIO paths")
         
         # Return cleaned paths for tracking in resource index
-        if cleaned_markdown_path or cleaned_json_path:
-            return {
-                'cleaned_markdown': cleaned_markdown_path,
-                'cleaned_json': cleaned_json_path
-            }
-        return None
+        # Only include paths that were actually created
+        cleaned_paths_dict = {}
+        if cleaned_markdown_path:
+            cleaned_paths_dict['cleaned_markdown'] = cleaned_markdown_path
+        if cleaned_json_path:
+            cleaned_paths_dict['cleaned_json'] = cleaned_json_path
+        
+        return cleaned_paths_dict if cleaned_paths_dict else None
             
     except Exception as e:
         logger.error(f"Error saving document to MinIO: {str(e)}", exc_info=True)
@@ -557,22 +559,24 @@ def generate_resource_index(db, run_id: str, has_errors: bool = False, document_
     # Use provided cleaned paths or empty dict
     cleaned_paths = document_cleaned_paths or {}
     
+    # Helper function to build document entry
+    def build_document_entry(doc):
+        doc_cleaned = cleaned_paths.get(doc.id, {})
+        return {
+            'id': doc.id,
+            'source_url': doc.source_url,
+            'title': doc.title,
+            'markdown_path': doc.markdown_path,
+            'json_path': doc.json_path,
+            # Add paths for cleaned versions if they exist
+            'cleaned_markdown_path': doc_cleaned.get('cleaned_markdown'),
+            'cleaned_json_path': doc_cleaned.get('cleaned_json'),
+        }
+    
     index = {
         'run_id': run_id,
         'generated_at': datetime.utcnow().isoformat(),
-        'documents': [
-            {
-                'id': doc.id,
-                'source_url': doc.source_url,
-                'title': doc.title,
-                'markdown_path': doc.markdown_path,
-                'json_path': doc.json_path,
-                # Add paths for cleaned versions if they exist
-                'cleaned_markdown_path': cleaned_paths.get(doc.id, {}).get('cleaned_markdown'),
-                'cleaned_json_path': cleaned_paths.get(doc.id, {}).get('cleaned_json'),
-            }
-            for doc in documents
-        ],
+        'documents': [build_document_entry(doc) for doc in documents],
         'images': [
             {
                 'id': img.id,

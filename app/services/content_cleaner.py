@@ -36,12 +36,6 @@ class ContentCleaner:
         r'##\s*热点排行.*?(?=\n##|\n\n(?:\w|$)|$)',  # Hot rankings
         r'##\s*相关链接.*?(?=\n##|\n\n(?:\w|$)|$)',  # Related links
         r'##\s*热点专题.*?(?=\n##|\n\n(?:\w|$)|$)',  # Hot topics
-        r'\n\*\s*\[.*?\]\(https://www\.bjhdedu\.cn/.*?\).*?(?=\n(?:[^*]|$))',  # List items that are links to bjhdedu.cn
-    ]
-    
-    # Patterns for duplicate/repetitive content
-    DUPLICATE_PATTERNS = [
-        r'(.*?\n)\1+',  # Repeated lines
     ]
     
     def __init__(self):
