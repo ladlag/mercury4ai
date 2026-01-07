@@ -7,10 +7,12 @@ from pathlib import Path
 import tempfile
 import uuid
 
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal
 from app.core.minio_client import minio_client
 from app.core.config import settings
-from app.models import CrawlTask
+from app.models import CrawlTask, Document
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
 
@@ -240,7 +242,7 @@ def execute_crawl_task(task_id: str, run_id: str):
     asyncio.run(execute_crawl_task_async(task_id, run_id))
 
 
-async def save_document_to_minio(db, run_id: str, document, crawl_result: Dict[str, Any]):
+async def save_document_to_minio(db: Session, run_id: str, document: Document, crawl_result: Dict[str, Any]):
     """Save document content to MinIO and update document with paths"""
     try:
         markdown_path = None
@@ -290,10 +292,16 @@ async def save_document_to_minio(db, run_id: str, document, crawl_result: Dict[s
                 'application/pdf'
             )
         
-        # Update document with paths
-        if markdown_path or json_path:
+        # Update document with paths if they were generated
+        should_update = False
+        if markdown_path and document.markdown_path != markdown_path:
             document.markdown_path = markdown_path
+            should_update = True
+        if json_path and document.json_path != json_path:
             document.json_path = json_path
+            should_update = True
+        
+        if should_update:
             db.commit()
             db.refresh(document)
             
