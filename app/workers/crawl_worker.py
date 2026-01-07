@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.models import CrawlTask, Document
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
+from app.services.content_cleaner import content_cleaner
 
 # Configure logging for RQ workers
 # This ensures that all application logs are visible when worker processes tasks
@@ -286,8 +287,10 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
     try:
         markdown_path = None
         json_path = None
+        cleaned_markdown_path = None
+        cleaned_json_path = None
         
-        # Save markdown
+        # Save original markdown
         if crawl_result.get('markdown'):
             markdown_path = generate_minio_path(
                 run_id, 'markdown', f"{document.id}.md"
@@ -298,17 +301,56 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 'text/markdown'
             )
             logger.info(f"Saved markdown to MinIO: {markdown_path}")
+            
+            # Clean markdown and save cleaned version
+            logger.info(f"Starting markdown cleaning for document {document.id}")
+            cleaning_result = content_cleaner.clean_markdown(
+                crawl_result['markdown'],
+                metadata=crawl_result.get('metadata')
+            )
+            
+            if cleaning_result['cleaned_markdown']:
+                cleaned_markdown_path = generate_minio_path(
+                    run_id, 'markdown', f"{document.id}_cleaned.md"
+                )
+                minio_client.upload_data(
+                    cleaned_markdown_path,
+                    cleaning_result['cleaned_markdown'].encode('utf-8'),
+                    'text/markdown'
+                )
+                logger.info(f"Saved cleaned markdown to MinIO: {cleaned_markdown_path}")
+                logger.info(f"Cleaning statistics: {cleaning_result['statistics']}")
+                
+                # Generate and save cleaned JSON
+                logger.info(f"Generating cleaned JSON for document {document.id}")
+                cleaned_json = content_cleaner.generate_cleaned_json(
+                    cleaning_result['cleaned_markdown'],
+                    metadata=crawl_result.get('metadata'),
+                    structured_data=crawl_result.get('structured_data')
+                )
+                
+                cleaned_json_path = generate_minio_path(
+                    run_id, 'json', f"{document.id}_cleaned.json"
+                )
+                minio_client.upload_data(
+                    cleaned_json_path,
+                    json.dumps(cleaned_json, indent=2, ensure_ascii=False).encode('utf-8'),
+                    'application/json'
+                )
+                logger.info(f"Saved cleaned JSON to MinIO: {cleaned_json_path}")
+            else:
+                logger.warning(f"Markdown cleaning produced empty result for document {document.id}")
         else:
             logger.warning(f"No markdown content to save for document {document.id}")
         
-        # Save structured data as JSON
+        # Save structured data as JSON (from LLM extraction)
         if crawl_result.get('structured_data'):
             json_path = generate_minio_path(
                 run_id, 'json', f"{document.id}.json"
             )
             minio_client.upload_data(
                 json_path,
-                json.dumps(crawl_result['structured_data'], indent=2).encode('utf-8'),
+                json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8'),
                 'application/json'
             )
             logger.info(f"Saved structured data to MinIO: {json_path}")
@@ -500,6 +542,9 @@ def generate_resource_index(db, run_id: str, has_errors: bool = False) -> Dict[s
                 'title': doc.title,
                 'markdown_path': doc.markdown_path,
                 'json_path': doc.json_path,
+                # Add paths for cleaned versions
+                'cleaned_markdown_path': doc.markdown_path.replace('.md', '_cleaned.md') if doc.markdown_path else None,
+                'cleaned_json_path': doc.json_path.replace('.json', '_cleaned.json') if doc.json_path else None,
             }
             for doc in documents
         ],
