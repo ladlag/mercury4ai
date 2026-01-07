@@ -249,24 +249,26 @@ class DocumentService:
 class URLRegistryService:
     @staticmethod
     def is_url_crawled(db: Session, url: str, task_id: str) -> bool:
-        """Check if URL has been crawled for this task"""
+        """Check if URL has been crawled (globally, not just for this task)"""
+        # Query only by URL since the registry is global
         registry = db.query(CrawledUrlRegistry).filter(
-            CrawledUrlRegistry.url == url,
-            CrawledUrlRegistry.task_id == task_id
+            CrawledUrlRegistry.url == url
         ).first()
         return registry is not None
     
     @staticmethod
     def register_url(db: Session, url: str, task_id: str) -> CrawledUrlRegistry:
         """Register URL as crawled (idempotent)"""
+        # Query only by URL since it has a unique constraint globally
         registry = db.query(CrawledUrlRegistry).filter(
-            CrawledUrlRegistry.url == url,
-            CrawledUrlRegistry.task_id == task_id
+            CrawledUrlRegistry.url == url
         ).first()
         
         if registry:
             registry.crawl_count += 1
             registry.last_crawled_at = datetime.utcnow()
+            # Update task_id to the current task that crawled it
+            registry.task_id = task_id
         else:
             registry = CrawledUrlRegistry(
                 url=url,
