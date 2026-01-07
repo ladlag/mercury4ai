@@ -106,6 +106,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # Track detailed errors for each URL
         error_details = []
         
+        # Track cleaned file paths for each document (for resource index)
+        document_cleaned_paths = {}  # document_id -> {'cleaned_markdown': path, 'cleaned_json': path}
+        
         # Get verbose setting from crawl_config for backward compatibility
         # Note: In crawl4ai 0.7.8+, verbose is no longer passed to the crawler.
         # Logging verbosity is now controlled by Python logging configuration (see module-level logging.basicConfig).
@@ -163,9 +166,13 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                     # Save to MinIO and update document with paths
                     logger.debug(f"Saving document artifacts to MinIO for {url}")
-                    await save_document_to_minio(
+                    cleaned_paths = await save_document_to_minio(
                         db, run_id, document, crawl_result
                     )
+                    
+                    # Track cleaned paths for resource index
+                    if cleaned_paths:
+                        document_cleaned_paths[document.id] = cleaned_paths
                     
                     # Process images
                     images = crawl_result.get('media', {}).get('images', [])
@@ -211,7 +218,8 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         resource_index = generate_resource_index(
             db=db,
             run_id=run_id,
-            has_errors=bool(error_details)
+            has_errors=bool(error_details),
+            document_cleaned_paths=document_cleaned_paths
         )
         
         # Save manifest and index to MinIO
@@ -282,8 +290,13 @@ def execute_crawl_task(task_id: str, run_id: str):
     asyncio.run(execute_crawl_task_async(task_id, run_id))
 
 
-async def save_document_to_minio(db: Session, run_id: str, document: Document, crawl_result: Dict[str, Any]):
-    """Save document content to MinIO and update document with paths"""
+async def save_document_to_minio(db: Session, run_id: str, document: Document, crawl_result: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """
+    Save document content to MinIO and update document with paths
+    
+    Returns:
+        Dictionary with cleaned file paths if cleaning was successful, None otherwise
+    """
     try:
         markdown_path = None
         json_path = None
@@ -392,9 +405,18 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             db.commit()
             db.refresh(document)
             logger.debug(f"Updated document {document.id} with MinIO paths")
+        
+        # Return cleaned paths for tracking in resource index
+        if cleaned_markdown_path or cleaned_json_path:
+            return {
+                'cleaned_markdown': cleaned_markdown_path,
+                'cleaned_json': cleaned_json_path
+            }
+        return None
             
     except Exception as e:
         logger.error(f"Error saving document to MinIO: {str(e)}", exc_info=True)
+        return None
 
 
 async def process_image(
@@ -526,11 +548,14 @@ def generate_run_manifest(
     return manifest
 
 
-def generate_resource_index(db, run_id: str, has_errors: bool = False) -> Dict[str, Any]:
+def generate_resource_index(db, run_id: str, has_errors: bool = False, document_cleaned_paths: Optional[Dict[str, Dict[str, str]]] = None) -> Dict[str, Any]:
     """Generate resource index for run"""
     documents = RunService.get_run_documents(db, run_id)
     images = RunService.get_run_images(db, run_id)
     attachments = RunService.get_run_attachments(db, run_id)
+    
+    # Use provided cleaned paths or empty dict
+    cleaned_paths = document_cleaned_paths or {}
     
     index = {
         'run_id': run_id,
@@ -542,9 +567,9 @@ def generate_resource_index(db, run_id: str, has_errors: bool = False) -> Dict[s
                 'title': doc.title,
                 'markdown_path': doc.markdown_path,
                 'json_path': doc.json_path,
-                # Add paths for cleaned versions
-                'cleaned_markdown_path': doc.markdown_path.replace('.md', '_cleaned.md') if doc.markdown_path else None,
-                'cleaned_json_path': doc.json_path.replace('.json', '_cleaned.json') if doc.json_path else None,
+                # Add paths for cleaned versions if they exist
+                'cleaned_markdown_path': cleaned_paths.get(doc.id, {}).get('cleaned_markdown'),
+                'cleaned_json_path': cleaned_paths.get(doc.id, {}).get('cleaned_json'),
             }
             for doc in documents
         ],
