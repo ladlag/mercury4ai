@@ -105,11 +105,11 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # Track detailed errors for each URL
         error_details = []
         
-        # Get verbose setting from crawl_config (default to True for detailed logs)
-        # This defaults to True to address the issue of missing detailed logs.
-        # Users can disable it per-task by setting crawl_config.verbose = False if needed.
+        # Get verbose setting from crawl_config for backward compatibility
+        # Note: In crawl4ai 0.7.8+, verbose is no longer passed to the crawler.
+        # Logging verbosity is now controlled by Python logging configuration (see module-level logging.basicConfig).
         verbose = (task.crawl_config or {}).get('verbose', True)
-        logger.info(f"Verbose logging enabled: {verbose}")
+        logger.info(f"Verbose setting from config: {verbose} (legacy parameter, not used by crawl4ai 0.7.8+)")
         
         # Process each URL
         async with CrawlerService(verbose=verbose) as crawler:

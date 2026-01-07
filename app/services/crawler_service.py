@@ -74,27 +74,26 @@ class CrawlerService:
         Initialize CrawlerService
         
         Args:
-            verbose: Enable verbose logging for crawl operations (default: True)
-                    Defaults to True to ensure detailed logs are available for debugging.
-                    Can be disabled per-task by setting crawl_config.verbose = False.
+            verbose: Legacy parameter, kept for compatibility but no longer used in crawl4ai 0.7.8+.
+                     Logging verbosity is now controlled by Python logging configuration.
             browser_type: Browser type to use (default: "chromium", options: "chromium", "firefox", "webkit")
             headless: Run browser in headless mode (default: True)
         """
         self.crawler = None
-        self.verbose = verbose
+        self.verbose = verbose  # Kept for backward compatibility
         self.browser_type = browser_type
         self.headless = headless
     
     async def __aenter__(self):
         """Context manager entry"""
-        # Configure browser with verbose logging
+        # Configure browser
+        # Note: verbose parameter removed for crawl4ai 0.7.8 compatibility
         browser_config = BrowserConfig(
             browser_type=self.browser_type,
-            headless=self.headless,
-            verbose=self.verbose
+            headless=self.headless
         )
         self.crawler = await AsyncWebCrawler(config=browser_config).__aenter__()
-        logger.info(f"AsyncWebCrawler initialized with verbose={self.verbose}, browser_type={self.browser_type}, headless={self.headless}")
+        logger.info(f"AsyncWebCrawler initialized with browser_type={self.browser_type}, headless={self.headless}")
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
@@ -134,7 +133,7 @@ class CrawlerService:
             }
             
             # Add optional parameters
-            # Note: verbose is now handled in BrowserConfig during crawler initialization
+            # Note: verbose parameter no longer supported in crawl4ai 0.7.8+
             if crawl_config.get('js_code'):
                 crawl_params['js_code'] = crawl_config['js_code']
                 logger.debug(f"Added js_code to crawl params")
