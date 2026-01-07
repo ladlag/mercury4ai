@@ -1,6 +1,7 @@
 import asyncio
 import json
 import logging
+import sys
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 from pathlib import Path
@@ -15,6 +16,16 @@ from app.core.config import settings
 from app.models import CrawlTask, Document
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
+
+# Configure logging for RQ workers
+# This ensures that all application logs are visible when worker processes tasks
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(message)s',
+    datefmt='%H:%M:%S',
+    stream=sys.stdout,
+    force=True  # Override any existing configuration
+)
 
 logger = logging.getLogger(__name__)
 
