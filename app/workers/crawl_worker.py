@@ -159,13 +159,13 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     images = crawl_result.get('media', {}).get('images', [])
                     if images:
                         logger.info(f"Processing {len(images)} images for {url}")
-                        for img_idx, img in enumerate(images, 1):
-                            logger.debug(f"Processing image {img_idx}/{len(images)}")
+                        for img in images:
                             await process_image(
                                 db, document.id, run_id, img,
                                 task.fallback_download_enabled,
                                 task.fallback_max_size_mb
                             )
+                        logger.debug(f"Completed processing {len(images)} images for {url}")
                     
                     # Register URL as crawled
                     URLRegistryService.register_url(db, url, task_id)

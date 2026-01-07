@@ -244,11 +244,12 @@ class CrawlerService:
                 'pdf': result.pdf if crawl_config.get('pdf') else None,
             }
             
-            # Log media extraction results
+            # Log media extraction results if any media was found
             images_count = len(crawl_result['media']['images'])
             videos_count = len(crawl_result['media']['videos'])
             audios_count = len(crawl_result['media']['audios'])
-            logger.info(f"Extracted {images_count} images, {videos_count} videos, {audios_count} audios from {url}")
+            if images_count > 0 or videos_count > 0 or audios_count > 0:
+                logger.info(f"Extracted {images_count} images, {videos_count} videos, {audios_count} audios from {url}")
             
             # Parse structured data if LLM extraction was used
             if result.extracted_content:
