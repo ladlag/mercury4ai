@@ -289,6 +289,10 @@ class CrawlerService:
             
             logger.info(f"Crawl completed successfully for: {url}")
             
+            # Log available result properties for debugging
+            result_attrs = [attr for attr in dir(result) if not attr.startswith('_')]
+            logger.debug(f"Available result properties: {', '.join(result_attrs[:20])}")  # Log first 20 attributes
+            
             # Extract both raw and fit (cleaned) markdown versions
             # fit_markdown has headers, footers, navigation removed by crawl4ai
             markdown_versions = extract_markdown_versions(result.markdown)
@@ -297,6 +301,10 @@ class CrawlerService:
             if hasattr(result, 'fit_markdown') and result.fit_markdown:
                 markdown_versions['fit'] = result.fit_markdown
                 logger.debug(f"Using result.fit_markdown directly: {len(result.fit_markdown)} characters")
+            
+            # Check if result.markdown is an object with properties
+            if hasattr(result.markdown, '__dict__'):
+                logger.debug(f"result.markdown is an object with properties: {list(vars(result.markdown).keys())}")
             
             if markdown_versions['raw']:
                 logger.debug(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
