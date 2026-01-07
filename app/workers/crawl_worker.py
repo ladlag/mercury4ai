@@ -103,7 +103,6 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             logger.info("No LLM config available - will perform basic crawling without structured extraction")
         
         # Log prompt and schema configuration
-        # Log prompt and schema configuration
         if task.prompt_template:
             logger.info(f"Prompt template configured: {len(task.prompt_template)} chars")
         else:

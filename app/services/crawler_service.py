@@ -217,8 +217,10 @@ class CrawlerService:
                 params = llm_config.get('params', {})
                 
                 logger.info(f"Configuring LLM extraction with provider={provider}, model={model}")
-                logger.debug(f"Prompt template length: {len(prompt_template)} chars")
-                logger.debug(f"Output schema provided: {output_schema is not None}")
+                
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Prompt template length: {len(prompt_template)} chars")
+                    logger.debug(f"Output schema provided: {output_schema is not None}")
                 
                 # Extract API key from params (it's stored in task.llm_params)
                 api_key = params.get('api_key')
@@ -287,10 +289,13 @@ class CrawlerService:
             
             logger.info(f"Crawl completed successfully for: {url}")
             
-            # Log available result properties for debugging (only when debug logging is enabled)
+            # Check for specific markdown-related properties (targeted approach)
             if logger.isEnabledFor(logging.DEBUG):
-                result_attrs = [attr for attr in dir(result) if not attr.startswith('_')]
-                logger.debug(f"Available result properties: {', '.join(result_attrs[:20])}")  # Log first 20 attributes
+                # Check for key properties we're interested in
+                has_fit_markdown = hasattr(result, 'fit_markdown')
+                has_raw_markdown = hasattr(result, 'raw_markdown')
+                has_cleaned_html = hasattr(result, 'cleaned_html')
+                logger.debug(f"Result properties: fit_markdown={has_fit_markdown}, raw_markdown={has_raw_markdown}, cleaned_html={has_cleaned_html}")
             
             # Extract both raw and fit (cleaned) markdown versions
             # fit_markdown has headers, footers, navigation removed by crawl4ai
@@ -299,7 +304,8 @@ class CrawlerService:
             # Check if result has fit_markdown directly (crawl4ai 0.7.8+)
             if hasattr(result, 'fit_markdown') and result.fit_markdown:
                 markdown_versions['fit'] = result.fit_markdown
-                logger.debug(f"Using result.fit_markdown directly: {len(result.fit_markdown)} characters")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"Using result.fit_markdown directly: {len(result.fit_markdown)} characters")
             
             # Check if result.markdown is an object with properties (only when debug logging is enabled)
             if logger.isEnabledFor(logging.DEBUG) and hasattr(result.markdown, '__dict__'):
