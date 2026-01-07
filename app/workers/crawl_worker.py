@@ -143,7 +143,14 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     logger.info(f"Starting crawl for URL: {url}")
                     prompt_preview = (task.prompt_template or 'None')[:100]
                     logger.debug(f"Task prompt_template: {prompt_preview}...")
-                    logger.debug(f"Task output_schema keys: {list(task.output_schema.keys()) if task.output_schema else 'None'}")
+                    # Safely get output_schema keys if it's a dict
+                    schema_info = 'None'
+                    if task.output_schema:
+                        if isinstance(task.output_schema, dict):
+                            schema_info = str(list(task.output_schema.keys()))
+                        else:
+                            schema_info = f'<{type(task.output_schema).__name__}>'
+                    logger.debug(f"Task output_schema keys: {schema_info}")
                     crawl_result = await crawler.crawl_url(
                         url=url,
                         crawl_config=task.crawl_config or {},

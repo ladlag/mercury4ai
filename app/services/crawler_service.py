@@ -16,10 +16,12 @@ try:
     MARKDOWN_GENERATOR_AVAILABLE = True
 except ImportError:
     MARKDOWN_GENERATOR_AVAILABLE = False
-    logger_temp = logging.getLogger(__name__)
-    logger_temp.debug("DefaultMarkdownGenerator not available in this crawl4ai version")
 
 logger = logging.getLogger(__name__)
+
+# Log if markdown generator is not available (after logger is defined)
+if not MARKDOWN_GENERATOR_AVAILABLE:
+    logger.debug("DefaultMarkdownGenerator not available in this crawl4ai version")
 
 
 def extract_markdown_string(markdown_result: Any) -> Optional[str]:
