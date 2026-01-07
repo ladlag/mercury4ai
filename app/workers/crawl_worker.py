@@ -22,7 +22,7 @@ from app.services.crawler_service import CrawlerService, download_resource, gene
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s | %(message)s',
-    datefmt='%H:%M:%S',
+    datefmt='%Y-%m-%d %H:%M:%S',
     stream=sys.stdout,
     force=True  # Override any existing configuration
 )
