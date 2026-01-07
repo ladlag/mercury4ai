@@ -226,7 +226,7 @@ class CrawlerService:
                 api_key = params.get('api_key')
                 
                 if not api_key:
-                    logger.warning(f"No API key provided for LLM extraction. LLM extraction will be skipped.")
+                    logger.warning("No API key provided for LLM extraction. LLM extraction will be skipped.")
                 else:
                     logger.debug(f"API key present: {api_key[:10]}...")
                 
