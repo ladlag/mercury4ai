@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased] - 2026-01-06
+## [Unreleased] - 2026-01-07
 
 ### Added
 - **Detailed Error Logging**: 
@@ -12,6 +12,12 @@
   - Enables debugging of crawl failures without accessing container logs
 
 ### Fixed
+- **Markdown Extraction with crawl4ai 0.7.8**: 
+  - Fixed issue where markdown content was not being properly extracted and saved
+  - Added `extract_markdown_string()` helper to handle both string and `MarkdownGenerationResult` object types
+  - Properly extracts `raw_markdown` for full content, with fallbacks to `fit_markdown` or `markdown_with_citations`
+  - Resolves "logs are there but markdown is missing" issue
+
 - **crawl4ai 0.7.8 Compatibility**: 
   - Removed explicit `verbose` parameter from crawler.arun() calls
   - Fixes "got multiple values for keyword argument 'verbose'" error

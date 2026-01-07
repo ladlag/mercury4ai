@@ -13,6 +13,44 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
+def extract_markdown_string(markdown_result: Any) -> Optional[str]:
+    """
+    Extract markdown string from crawl4ai result.
+    
+    In crawl4ai 0.7.8+, result.markdown can be either:
+    - A string (simple markdown text)
+    - A MarkdownGenerationResult object with raw_markdown and fit_markdown properties
+    
+    Args:
+        markdown_result: The markdown field from crawl4ai result
+    
+    Returns:
+        String containing the markdown content, or None if not available
+    """
+    if markdown_result is None:
+        return None
+    
+    # If it's already a string, return it
+    if isinstance(markdown_result, str):
+        return markdown_result
+    
+    # If it's a MarkdownGenerationResult object, extract the markdown
+    # Prefer raw_markdown for full content, fall back to fit_markdown
+    if hasattr(markdown_result, 'raw_markdown'):
+        return markdown_result.raw_markdown
+    elif hasattr(markdown_result, 'fit_markdown'):
+        return markdown_result.fit_markdown
+    elif hasattr(markdown_result, 'markdown_with_citations'):
+        return markdown_result.markdown_with_citations
+    
+    # Last resort: try to convert to string
+    try:
+        return str(markdown_result)
+    except (TypeError, AttributeError, ValueError) as e:
+        logger.warning(f"Unable to extract markdown from result type {type(markdown_result)}: {e}")
+        return None
+
+
 # Provider configurations for Chinese LLM providers
 CHINESE_LLM_PROVIDERS = {
     'qwen': {
@@ -141,11 +179,14 @@ class CrawlerService:
                 }
             
             # Extract data
+            # Handle markdown properly - it can be a string or MarkdownGenerationResult object
+            markdown_content = extract_markdown_string(result.markdown)
+            
             crawl_result = {
                 'success': True,
                 'url': url,
                 'html': result.html,
-                'markdown': result.markdown,
+                'markdown': markdown_content,
                 'cleaned_html': result.cleaned_html,
                 'metadata': {
                     'title': getattr(result, 'title', None),
