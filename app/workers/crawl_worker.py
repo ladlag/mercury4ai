@@ -7,10 +7,12 @@ from pathlib import Path
 import tempfile
 import uuid
 
+from sqlalchemy.orm import Session
+
 from app.core.database import SessionLocal
 from app.core.minio_client import minio_client
 from app.core.config import settings
-from app.models import CrawlTask
+from app.models import CrawlTask, Document
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
 
@@ -132,9 +134,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     )
                     documents_created += 1
                     
-                    # Save to MinIO
+                    # Save to MinIO and update document with paths
                     await save_document_to_minio(
-                        run_id, document.id, crawl_result
+                        db, run_id, document, crawl_result
                     )
                     
                     # Process images
@@ -165,6 +167,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         manifest = generate_run_manifest(
             run_id=run_id,
             task=task,
+            llm_config=llm_config,
             urls_crawled=urls_crawled,
             urls_failed=urls_failed,
             documents_created=documents_created,
@@ -239,13 +242,16 @@ def execute_crawl_task(task_id: str, run_id: str):
     asyncio.run(execute_crawl_task_async(task_id, run_id))
 
 
-async def save_document_to_minio(run_id: str, document_id: str, crawl_result: Dict[str, Any]):
-    """Save document content to MinIO"""
+async def save_document_to_minio(db: Session, run_id: str, document: Document, crawl_result: Dict[str, Any]):
+    """Save document content to MinIO and update document with paths"""
     try:
+        markdown_path = None
+        json_path = None
+        
         # Save markdown
         if crawl_result.get('markdown'):
             markdown_path = generate_minio_path(
-                run_id, 'markdown', f"{document_id}.md"
+                run_id, 'markdown', f"{document.id}.md"
             )
             minio_client.upload_data(
                 markdown_path,
@@ -256,7 +262,7 @@ async def save_document_to_minio(run_id: str, document_id: str, crawl_result: Di
         # Save structured data as JSON
         if crawl_result.get('structured_data'):
             json_path = generate_minio_path(
-                run_id, 'json', f"{document_id}.json"
+                run_id, 'json', f"{document.id}.json"
             )
             minio_client.upload_data(
                 json_path,
@@ -267,7 +273,7 @@ async def save_document_to_minio(run_id: str, document_id: str, crawl_result: Di
         # Save screenshot if available
         if crawl_result.get('screenshot'):
             screenshot_path = generate_minio_path(
-                run_id, 'images', f"{document_id}_screenshot.png"
+                run_id, 'images', f"{document.id}_screenshot.png"
             )
             minio_client.upload_data(
                 screenshot_path,
@@ -278,13 +284,26 @@ async def save_document_to_minio(run_id: str, document_id: str, crawl_result: Di
         # Save PDF if available
         if crawl_result.get('pdf'):
             pdf_path = generate_minio_path(
-                run_id, 'attachments', f"{document_id}.pdf"
+                run_id, 'attachments', f"{document.id}.pdf"
             )
             minio_client.upload_data(
                 pdf_path,
                 crawl_result['pdf'],
                 'application/pdf'
             )
+        
+        # Update document with paths if they were generated
+        should_update = False
+        if markdown_path and document.markdown_path != markdown_path:
+            document.markdown_path = markdown_path
+            should_update = True
+        if json_path and document.json_path != json_path:
+            document.json_path = json_path
+            should_update = True
+        
+        if should_update:
+            db.commit()
+            db.refresh(document)
             
     except Exception as e:
         logger.error(f"Error saving document to MinIO: {str(e)}")
@@ -367,12 +386,21 @@ def generate_run_manifest(
     run_id: str,
     *,
     task: CrawlTask,
+    llm_config: Optional[Dict[str, Any]],
     urls_crawled: int,
     urls_failed: int,
     documents_created: int,
     error_details: Optional[List[Dict[str, Any]]] = None
 ) -> Dict[str, Any]:
     """Generate run manifest"""
+    # Use llm_config if available, otherwise fall back to task config
+    if llm_config:
+        llm_provider = llm_config.get('provider')
+        llm_model = llm_config.get('model')
+    else:
+        llm_provider = task.llm_provider
+        llm_model = task.llm_model
+    
     manifest = {
         'run_id': run_id,
         'task_id': task.id,
@@ -384,8 +412,8 @@ def generate_run_manifest(
         'configuration': {
             'urls': task.urls,
             'deduplication_enabled': task.deduplication_enabled,
-            'llm_provider': task.llm_provider,
-            'llm_model': task.llm_model,
+            'llm_provider': llm_provider,
+            'llm_model': llm_model,
         }
     }
     
