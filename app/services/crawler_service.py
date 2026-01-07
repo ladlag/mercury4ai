@@ -228,7 +228,7 @@ class CrawlerService:
                 if not api_key:
                     logger.warning("No API key provided for LLM extraction. LLM extraction will be skipped.")
                 else:
-                    logger.debug(f"API key present: {api_key[:10]}...")
+                    logger.debug("API key is present")
                 
                 # Handle Chinese LLM providers
                 provider_lower = provider.lower()
@@ -289,9 +289,10 @@ class CrawlerService:
             
             logger.info(f"Crawl completed successfully for: {url}")
             
-            # Log available result properties for debugging
-            result_attrs = [attr for attr in dir(result) if not attr.startswith('_')]
-            logger.debug(f"Available result properties: {', '.join(result_attrs[:20])}")  # Log first 20 attributes
+            # Log available result properties for debugging (only when debug logging is enabled)
+            if logger.isEnabledFor(logging.DEBUG):
+                result_attrs = [attr for attr in dir(result) if not attr.startswith('_')]
+                logger.debug(f"Available result properties: {', '.join(result_attrs[:20])}")  # Log first 20 attributes
             
             # Extract both raw and fit (cleaned) markdown versions
             # fit_markdown has headers, footers, navigation removed by crawl4ai
@@ -302,8 +303,8 @@ class CrawlerService:
                 markdown_versions['fit'] = result.fit_markdown
                 logger.debug(f"Using result.fit_markdown directly: {len(result.fit_markdown)} characters")
             
-            # Check if result.markdown is an object with properties
-            if hasattr(result.markdown, '__dict__'):
+            # Check if result.markdown is an object with properties (only when debug logging is enabled)
+            if logger.isEnabledFor(logging.DEBUG) and hasattr(result.markdown, '__dict__'):
                 logger.debug(f"result.markdown is an object with properties: {list(vars(result.markdown).keys())}")
             
             if markdown_versions['raw']:

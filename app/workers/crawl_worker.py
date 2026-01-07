@@ -141,7 +141,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                     # Crawl URL
                     logger.info(f"Starting crawl for URL: {url}")
-                    prompt_preview = (task.prompt_template or '')[:100] if task.prompt_template is not None else 'None'
+                    prompt_preview = (task.prompt_template or 'None')[:100]
                     logger.debug(f"Task prompt_template: {prompt_preview}...")
                     logger.debug(f"Task output_schema keys: {list(task.output_schema.keys()) if task.output_schema else 'None'}")
                     crawl_result = await crawler.crawl_url(
