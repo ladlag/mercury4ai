@@ -78,9 +78,14 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         )
         
         logger.info(f"Starting crawl task {task_id}, run {run_id}")
+        logger.info(f"Task name: {task.name}, URLs to crawl: {len(task.urls)}")
         
         # Prepare LLM config using defaults if task config is incomplete
         llm_config = merge_llm_config(task)
+        if llm_config:
+            logger.info(f"LLM config: provider={llm_config['provider']}, model={llm_config['model']}")
+        else:
+            logger.info("No LLM config available - will perform basic crawling without structured extraction")
         
         # Statistics
         urls_crawled = 0
@@ -90,10 +95,16 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # Track detailed errors for each URL
         error_details = []
         
+        # Get verbose setting from crawl_config (default to True for detailed logs)
+        verbose = task.crawl_config.get('verbose', True) if task.crawl_config else True
+        logger.info(f"Verbose logging enabled: {verbose}")
+        
         # Process each URL
-        async with CrawlerService() as crawler:
-            for url in task.urls:
+        async with CrawlerService(verbose=verbose) as crawler:
+            for idx, url in enumerate(task.urls, 1):
                 try:
+                    logger.info(f"Processing URL {idx}/{len(task.urls)}: {url}")
+                    
                     # Check if URL should be skipped (deduplication)
                     if task.deduplication_enabled:
                         if URLRegistryService.is_url_crawled(db, url, task_id):
@@ -101,6 +112,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                             continue
                     
                     # Crawl URL
+                    logger.info(f"Starting crawl for URL: {url}")
                     crawl_result = await crawler.crawl_url(
                         url=url,
                         crawl_config=task.crawl_config or {},
@@ -121,8 +133,10 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         continue
                     
                     urls_crawled += 1
+                    logger.info(f"Successfully crawled URL {idx}/{len(task.urls)}: {url}")
                     
                     # Save document to database
+                    logger.debug(f"Saving document to database for {url}")
                     document = DocumentService.upsert_document(
                         db=db,
                         run_id=run_id,
@@ -133,25 +147,30 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         doc_metadata=crawl_result.get('metadata'),
                     )
                     documents_created += 1
+                    logger.info(f"Document saved with ID: {document.id}")
                     
                     # Save to MinIO and update document with paths
+                    logger.debug(f"Saving document artifacts to MinIO for {url}")
                     await save_document_to_minio(
                         db, run_id, document, crawl_result
                     )
                     
                     # Process images
                     images = crawl_result.get('media', {}).get('images', [])
-                    for img in images:
-                        await process_image(
-                            db, document.id, run_id, img,
-                            task.fallback_download_enabled,
-                            task.fallback_max_size_mb
-                        )
+                    if images:
+                        logger.info(f"Processing {len(images)} images for {url}")
+                        for img_idx, img in enumerate(images, 1):
+                            logger.debug(f"Processing image {img_idx}/{len(images)}")
+                            await process_image(
+                                db, document.id, run_id, img,
+                                task.fallback_download_enabled,
+                                task.fallback_max_size_mb
+                            )
                     
                     # Register URL as crawled
                     URLRegistryService.register_url(db, url, task_id)
                     
-                    logger.info(f"Successfully processed URL: {url}")
+                    logger.info(f"Successfully processed URL {idx}/{len(task.urls)}: {url}")
                     
                 except Exception as e:
                     # Rollback the session to clear any pending transactions
@@ -166,6 +185,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     })
         
         # Generate run manifest and resource index
+        logger.info(f"Generating run manifest and resource index for run {run_id}")
         manifest = generate_run_manifest(
             run_id=run_id,
             task=task,
@@ -188,6 +208,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             json.dumps(manifest, indent=2, default=str).encode('utf-8'),
             'application/json'
         )
+        logger.info(f"Saved run manifest to MinIO: {manifest_path}")
         
         index_path = generate_minio_path(run_id, 'logs', 'resource_index.json')
         minio_client.upload_data(
@@ -195,6 +216,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             json.dumps(resource_index, indent=2, default=str).encode('utf-8'),
             'application/json'
         )
+        logger.info(f"Saved resource index to MinIO: {index_path}")
         
         # Save error log if there are any errors
         if error_details:
@@ -227,6 +249,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         )
         
         logger.info(f"Crawl task {task_id} completed successfully")
+        logger.info(f"Summary: {urls_crawled} URLs crawled, {urls_failed} failed, {documents_created} documents created")
         
     except Exception as e:
         logger.error(f"Error executing crawl task {task_id}: {str(e)}", exc_info=True)
@@ -262,6 +285,9 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 crawl_result['markdown'].encode('utf-8'),
                 'text/markdown'
             )
+            logger.info(f"Saved markdown to MinIO: {markdown_path}")
+        else:
+            logger.warning(f"No markdown content to save for document {document.id}")
         
         # Save structured data as JSON
         if crawl_result.get('structured_data'):
@@ -273,6 +299,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 json.dumps(crawl_result['structured_data'], indent=2).encode('utf-8'),
                 'application/json'
             )
+            logger.info(f"Saved structured data to MinIO: {json_path}")
         
         # Save screenshot if available
         if crawl_result.get('screenshot'):
@@ -284,6 +311,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 crawl_result['screenshot'],
                 'image/png'
             )
+            logger.info(f"Saved screenshot to MinIO: {screenshot_path}")
         
         # Save PDF if available
         if crawl_result.get('pdf'):
@@ -295,6 +323,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 crawl_result['pdf'],
                 'application/pdf'
             )
+            logger.info(f"Saved PDF to MinIO: {pdf_path}")
         
         # Update document with paths if they were generated
         should_update = False
@@ -308,9 +337,10 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
         if should_update:
             db.commit()
             db.refresh(document)
+            logger.debug(f"Updated document {document.id} with MinIO paths")
             
     except Exception as e:
-        logger.error(f"Error saving document to MinIO: {str(e)}")
+        logger.error(f"Error saving document to MinIO: {str(e)}", exc_info=True)
 
 
 async def process_image(
@@ -321,8 +351,10 @@ async def process_image(
     try:
         image_url = image_info.get('src') or image_info.get('url')
         if not image_url:
+            logger.debug("Skipping image with no URL")
             return
         
+        logger.debug(f"Processing image: {image_url}")
         alt_text = image_info.get('alt')
         
         # Try to download from crawl4ai result first
@@ -337,6 +369,7 @@ async def process_image(
             # Image was downloaded by crawl4ai
             download_status = 'success'
             download_method = 'crawl4ai'
+            logger.debug(f"Image downloaded by crawl4ai: {image_url}")
             
             # Upload to MinIO
             filename = Path(image_url).name or f"image_{uuid.uuid4().hex[:8]}.jpg"
@@ -344,11 +377,14 @@ async def process_image(
             
             if image_info.get('data'):
                 minio_client.upload_data(minio_path, image_info['data'], 'image/jpeg')
+                logger.info(f"Uploaded image data to MinIO: {minio_path}")
             elif image_info.get('downloaded_path'):
                 minio_client.upload_file(minio_path, image_info['downloaded_path'])
+                logger.info(f"Uploaded image file to MinIO: {minio_path}")
         
         # Fallback download if enabled and crawl4ai didn't download
         elif fallback_enabled and download_status == 'pending':
+            logger.debug(f"Attempting fallback download for: {image_url}")
             download_result = await download_resource(image_url, max_size_mb)
             if download_result and download_result['success']:
                 download_status = 'success'
@@ -364,10 +400,13 @@ async def process_image(
                     download_result['content'],
                     mime_type
                 )
+                logger.info(f"Fallback download successful, uploaded to MinIO: {minio_path}")
             else:
                 download_status = 'failed'
+                logger.warning(f"Fallback download failed for: {image_url}")
         else:
             download_status = 'skipped'
+            logger.debug(f"Image download skipped (fallback disabled): {image_url}")
         
         # Save to database
         DocumentService.upsert_image(
@@ -381,9 +420,10 @@ async def process_image(
             download_status=download_status,
             download_method=download_method
         )
+        logger.debug(f"Saved image metadata to database: {image_url} (status: {download_status})")
         
     except Exception as e:
-        logger.error(f"Error processing image: {str(e)}")
+        logger.error(f"Error processing image: {str(e)}", exc_info=True)
 
 
 def generate_run_manifest(

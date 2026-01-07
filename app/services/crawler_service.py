@@ -1,5 +1,5 @@
 import asyncio
-from crawl4ai import AsyncWebCrawler, CacheMode
+from crawl4ai import AsyncWebCrawler, CacheMode, BrowserConfig
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from typing import Dict, Any, List, Optional
 import logging
@@ -69,18 +69,33 @@ CHINESE_LLM_PROVIDERS = {
 
 
 class CrawlerService:
-    def __init__(self):
+    def __init__(self, verbose: bool = True):
+        """
+        Initialize CrawlerService
+        
+        Args:
+            verbose: Enable verbose logging for crawl operations (default: True)
+        """
         self.crawler = None
+        self.verbose = verbose
     
     async def __aenter__(self):
         """Context manager entry"""
-        self.crawler = await AsyncWebCrawler().__aenter__()
+        # Configure browser with verbose logging
+        browser_config = BrowserConfig(
+            browser_type="chromium",
+            headless=True,
+            verbose=self.verbose
+        )
+        self.crawler = await AsyncWebCrawler(config=browser_config).__aenter__()
+        logger.info(f"AsyncWebCrawler initialized with verbose={self.verbose}")
         return self
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit"""
         if self.crawler:
             await self.crawler.__aexit__(exc_type, exc_val, exc_tb)
+            logger.info("AsyncWebCrawler closed")
     
     async def crawl_url(
         self,
@@ -95,7 +110,7 @@ class CrawlerService:
         
         Args:
             url: URL to crawl
-            crawl_config: General crawl4ai configuration
+            crawl_config: General crawl4ai configuration (may include verbose flag)
             llm_config: LLM provider configuration
             prompt_template: Prompt for LLM extraction
             output_schema: JSON schema for structured output
@@ -104,6 +119,8 @@ class CrawlerService:
             Dictionary with crawl results
         """
         try:
+            logger.info(f"Starting crawl for URL: {url}")
+            
             # Prepare crawl parameters
             crawl_params = {
                 'url': url,
@@ -111,23 +128,30 @@ class CrawlerService:
             }
             
             # Add optional parameters
-            # Note: verbose parameter removed to avoid conflict with crawl4ai 0.7.8
+            # Note: verbose is now handled in BrowserConfig during crawler initialization
             if crawl_config.get('js_code'):
                 crawl_params['js_code'] = crawl_config['js_code']
+                logger.debug(f"Added js_code to crawl params")
             if crawl_config.get('wait_for'):
                 crawl_params['wait_for'] = crawl_config['wait_for']
+                logger.debug(f"Added wait_for selector: {crawl_config['wait_for']}")
             if crawl_config.get('css_selector'):
                 crawl_params['css_selector'] = crawl_config['css_selector']
+                logger.debug(f"Added css_selector: {crawl_config['css_selector']}")
             if crawl_config.get('screenshot'):
                 crawl_params['screenshot'] = True
+                logger.debug("Screenshot enabled")
             if crawl_config.get('pdf'):
                 crawl_params['pdf'] = True
+                logger.debug("PDF generation enabled")
             
             # Configure LLM extraction if provided
             if llm_config and prompt_template:
                 provider = llm_config.get('provider', 'openai')
                 model = llm_config.get('model', 'gpt-4')
                 params = llm_config.get('params', {})
+                
+                logger.info(f"Configuring LLM extraction with provider={provider}, model={model}")
                 
                 # Extract API key from params (it's stored in task.llm_params)
                 api_key = params.get('api_key')
@@ -143,6 +167,8 @@ class CrawlerService:
                     else:
                         full_model = model
                     
+                    logger.debug(f"Using Chinese LLM provider: {provider_lower}, full_model: {full_model}")
+                    
                     # Set base_url if configured
                     if provider_config['base_url']:
                         params['base_url'] = provider_config['base_url']
@@ -157,6 +183,7 @@ class CrawlerService:
                     )
                 else:
                     # Standard provider (openai, anthropic, etc.)
+                    logger.debug(f"Using standard LLM provider: {provider}")
                     extraction_strategy = LLMExtractionStrategy(
                         provider=provider,
                         api_token=api_key,
@@ -166,8 +193,10 @@ class CrawlerService:
                     )
                 
                 crawl_params['extraction_strategy'] = extraction_strategy
+                logger.info("LLM extraction strategy configured successfully")
             
             # Execute crawl
+            logger.info(f"Executing crawl for: {url}")
             result = await self.crawler.arun(**crawl_params)
             
             if not result.success:
@@ -178,9 +207,16 @@ class CrawlerService:
                     'error': result.error_message,
                 }
             
+            logger.info(f"Crawl completed successfully for: {url}")
+            
             # Extract data
             # Handle markdown properly - it can be a string or MarkdownGenerationResult object
             markdown_content = extract_markdown_string(result.markdown)
+            
+            if markdown_content:
+                logger.debug(f"Extracted markdown content: {len(markdown_content)} characters")
+            else:
+                logger.warning(f"No markdown content extracted for {url}")
             
             crawl_result = {
                 'success': True,
@@ -208,11 +244,19 @@ class CrawlerService:
                 'pdf': result.pdf if crawl_config.get('pdf') else None,
             }
             
+            # Log media extraction results
+            images_count = len(crawl_result['media']['images'])
+            videos_count = len(crawl_result['media']['videos'])
+            audios_count = len(crawl_result['media']['audios'])
+            logger.info(f"Extracted {images_count} images, {videos_count} videos, {audios_count} audios from {url}")
+            
             # Parse structured data if LLM extraction was used
             if result.extracted_content:
                 try:
                     crawl_result['structured_data'] = json.loads(result.extracted_content)
-                except json.JSONDecodeError:
+                    logger.info(f"Successfully parsed structured data for {url}")
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse extracted_content as JSON for {url}: {e}")
                     crawl_result['structured_data'] = {'raw': result.extracted_content}
             
             logger.info(f"Successfully crawled: {url}")
