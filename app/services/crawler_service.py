@@ -75,6 +75,8 @@ class CrawlerService:
         
         Args:
             verbose: Enable verbose logging for crawl operations (default: True)
+                    Defaults to True to ensure detailed logs are available for debugging.
+                    Can be disabled per-task by setting crawl_config.verbose = False.
             browser_type: Browser type to use (default: "chromium", options: "chromium", "firefox", "webkit")
             headless: Run browser in headless mode (default: True)
         """
@@ -261,7 +263,7 @@ class CrawlerService:
                     crawl_result['structured_data'] = json.loads(result.extracted_content)
                     logger.info(f"Successfully parsed structured data for {url}")
                 except json.JSONDecodeError as e:
-                    logger.warning(f"Failed to parse extracted_content as JSON for {url}: {e}")
+                    logger.warning(f"Failed to parse extracted_content as JSON for {url}: {str(e)}")
                     crawl_result['structured_data'] = {'raw': result.extracted_content}
             
             logger.info(f"Successfully crawled: {url}")

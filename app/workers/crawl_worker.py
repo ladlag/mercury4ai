@@ -96,6 +96,8 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         error_details = []
         
         # Get verbose setting from crawl_config (default to True for detailed logs)
+        # This defaults to True to address the issue of missing detailed logs.
+        # Users can disable it per-task by setting crawl_config.verbose = False if needed.
         verbose = (task.crawl_config or {}).get('verbose', True)
         logger.info(f"Verbose logging enabled: {verbose}")
         
@@ -351,7 +353,7 @@ async def process_image(
     try:
         image_url = image_info.get('src') or image_info.get('url')
         if not image_url:
-            logger.debug("Skipping image with no URL")
+            logger.debug(f"Skipping image with no URL (document_id: {document_id})")
             return
         
         logger.debug(f"Processing image: {image_url}")
