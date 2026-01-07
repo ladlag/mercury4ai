@@ -33,9 +33,10 @@ class ContentCleaner:
     ]
     
     SIDEBAR_PATTERNS = [
-        r'##\s*热点排行.*?(?=\n##|\n\n|$)',  # Hot rankings
-        r'##\s*相关链接.*?(?=\n##|\n\n|$)',  # Related links
-        r'##\s*热点专题.*?(?=\n##|\n\n|$)',  # Hot topics
+        r'##\s*热点排行.*?(?=\n##|\n\n(?:\w|$)|$)',  # Hot rankings
+        r'##\s*相关链接.*?(?=\n##|\n\n(?:\w|$)|$)',  # Related links
+        r'##\s*热点专题.*?(?=\n##|\n\n(?:\w|$)|$)',  # Hot topics
+        r'\n\*\s*\[.*?\]\(https://www\.bjhdedu\.cn/.*?\).*?(?=\n(?:[^*]|$))',  # List items that are links to bjhdedu.cn
     ]
     
     # Patterns for duplicate/repetitive content
@@ -102,6 +103,16 @@ class ContentCleaner:
         # Remove images that are logos or icons
         cleaned = re.sub(r'!\[\]\(.*?(?:logo|icon|banner).*?\)', '', cleaned, flags=re.IGNORECASE)
         
+        # Remove remaining list items with just links (typical in sidebars)
+        # Match list items that only contain a link with no meaningful text
+        cleaned = re.sub(r'\n\s*[\*\-]\s*\[.*?\]\(.*?\)\s*(?=\n|$)', '', cleaned)
+        
+        # Remove lines with just image markdown and no text
+        cleaned = re.sub(r'^!\[.*?\]\(.*?\)\s*$', '', cleaned, flags=re.MULTILINE)
+        
+        # Remove standalone exclamation marks or brackets from image removal
+        cleaned = re.sub(r'^[!\[\]]+\s*$', '', cleaned, flags=re.MULTILINE)
+        
         # Remove excessive whitespace
         cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)  # Max 2 consecutive newlines
         cleaned = re.sub(r'[ \t]+\n', '\n', cleaned)  # Trailing spaces
@@ -112,6 +123,10 @@ class ContentCleaner:
         
         # Remove links with no text (just empty brackets)
         cleaned = re.sub(r'\[\]\(.*?\)', '', cleaned)
+        
+        # Remove standalone metadata lines like "时间:XXXX" and "【字体：...】"
+        cleaned = re.sub(r'^时间[:：].*?(?=\n|$)', '', cleaned, flags=re.MULTILINE)
+        cleaned = re.sub(r'【字体[：:].*?】.*?(?=\n|$)', '', cleaned, flags=re.MULTILINE)
         
         # Clean up duplicate content (be conservative)
         # Only remove if 3+ identical consecutive lines
