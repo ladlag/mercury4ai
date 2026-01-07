@@ -13,7 +13,7 @@ import uuid
 logger = logging.getLogger(__name__)
 
 
-def extract_markdown_string(markdown_result):
+def extract_markdown_string(markdown_result: Any) -> Optional[str]:
     """
     Extract markdown string from crawl4ai result.
     
