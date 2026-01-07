@@ -154,6 +154,8 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     logger.info(f"Successfully processed URL: {url}")
                     
                 except Exception as e:
+                    # Rollback the session to clear any pending transactions
+                    db.rollback()
                     urls_failed += 1
                     error_msg = str(e)
                     logger.error(f"Error processing URL {url}: {error_msg}", exc_info=True)
@@ -228,6 +230,8 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         
     except Exception as e:
         logger.error(f"Error executing crawl task {task_id}: {str(e)}", exc_info=True)
+        # Rollback the session before trying to update run status
+        db.rollback()
         RunService.update_run_status(
             db, run_id, 'failed',
             completed_at=datetime.utcnow(),

@@ -259,14 +259,16 @@ class URLRegistryService:
     @staticmethod
     def register_url(db: Session, url: str, task_id: str) -> CrawledUrlRegistry:
         """Register URL as crawled (idempotent)"""
+        # Query only by URL since it has a unique constraint globally
         registry = db.query(CrawledUrlRegistry).filter(
-            CrawledUrlRegistry.url == url,
-            CrawledUrlRegistry.task_id == task_id
+            CrawledUrlRegistry.url == url
         ).first()
         
         if registry:
             registry.crawl_count += 1
             registry.last_crawled_at = datetime.utcnow()
+            # Update task_id to the current task that crawled it
+            registry.task_id = task_id
         else:
             registry = CrawledUrlRegistry(
                 url=url,
