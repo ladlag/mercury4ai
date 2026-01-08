@@ -27,6 +27,7 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 📚 **Complete documentation:**
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
 - **[CONFIG.md](CONFIG.md)** - Complete configuration guide with all options explained
+- **[TROUBLESHOOTING_LLM_EXTRACTION.md](TROUBLESHOOTING_LLM_EXTRACTION.md)** - Fix LLM extraction and markdown cleaning issues
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design principles
 - **[prompt_templates/README.md](prompt_templates/README.md)** - Reusable templates guide

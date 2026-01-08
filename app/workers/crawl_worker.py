@@ -94,8 +94,28 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         llm_config = merge_llm_config(task)
         if llm_config:
             logger.info(f"LLM config: provider={llm_config['provider']}, model={llm_config['model']}")
+            # Check if API key is present
+            if llm_config.get('params', {}).get('api_key'):
+                logger.debug("API key is configured in LLM params")
+            else:
+                logger.warning("API key is missing in LLM params - extraction may fail")
         else:
             logger.info("No LLM config available - will perform basic crawling without structured extraction")
+        
+        # Log prompt and schema configuration
+        if task.prompt_template:
+            logger.info(f"Prompt template configured: {len(task.prompt_template)} chars")
+        else:
+            logger.warning("No prompt_template configured - LLM extraction will be skipped even if LLM config is present")
+        
+        if task.output_schema:
+            # Only convert to string if debug logging is enabled
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"Output schema configured: {len(str(task.output_schema))} chars")
+            else:
+                logger.info("Output schema configured")
+        else:
+            logger.info("No output_schema configured (optional for LLM extraction)")
         
         # Statistics
         urls_crawled = 0
@@ -125,6 +145,19 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                     # Crawl URL
                     logger.info(f"Starting crawl for URL: {url}")
+                    
+                    # Debug logging for task configuration
+                    if logger.isEnabledFor(logging.DEBUG):
+                        prompt_preview = (task.prompt_template or 'None')[:100]
+                        logger.debug(f"Task prompt_template: {prompt_preview}...")
+                        # Safely get output_schema keys if it's a dict
+                        schema_info = 'None'
+                        if task.output_schema:
+                            if isinstance(task.output_schema, dict):
+                                schema_info = str(list(task.output_schema.keys()))
+                            else:
+                                schema_info = f'<{type(task.output_schema).__name__}>'
+                        logger.debug(f"Task output_schema keys: {schema_info}")
                     crawl_result = await crawler.crawl_url(
                         url=url,
                         crawl_config=task.crawl_config or {},
