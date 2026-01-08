@@ -94,9 +94,8 @@ def extract_markdown_versions(markdown_result: Any) -> Dict[str, Optional[str]]:
     if hasattr(markdown_result, 'fit_markdown'):
         result['fit'] = markdown_result.fit_markdown
     
-    # If we only got raw markdown but no fit markdown, don't use raw as fallback
-    # This helps identify when the content filter is not working
-    # Only use raw as fallback if neither is available
+    # Only use fallback if both raw and fit are unavailable (edge case)
+    # This helps identify when the content filter is not working properly
     if not result['raw'] and not result['fit']:
         # Last resort: try to convert to string
         try:
@@ -195,9 +194,10 @@ class CrawlerService:
             if MARKDOWN_GENERATOR_AVAILABLE:
                 try:
                     # Use PruningContentFilter to remove headers, footers, navigation, ads, etc.
-                    # threshold=0.48 means keep blocks with text density >= 48% (recommended default)
-                    # threshold_type="dynamic" adjusts based on content characteristics
-                    # min_word_threshold=0 includes even short blocks if they meet density requirements
+                    # Based on crawl4ai documentation: https://docs.crawl4ai.com/core/fit-markdown/
+                    # threshold=0.48 keeps blocks with text density >= 48% (balance between precision and recall)
+                    # threshold_type="dynamic" adjusts threshold based on content characteristics
+                    # min_word_threshold=0 includes short blocks if they meet density requirements
                     content_filter = PruningContentFilter(
                         threshold=0.48,
                         threshold_type="dynamic",

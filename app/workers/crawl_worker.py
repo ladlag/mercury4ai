@@ -106,14 +106,17 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         if task.prompt_template:
             logger.info(f"Prompt template configured: {len(task.prompt_template)} chars")
         else:
-            logger.warning("=" * 80)
-            logger.warning("No prompt_template configured - LLM extraction will be skipped!")
-            logger.warning("To enable LLM extraction and custom structured data:")
-            logger.warning("1. Set 'prompt_template' field in your task configuration")
-            logger.warning("2. Set 'output_schema' field (optional but recommended)")
-            logger.warning("3. Ensure llm_provider, llm_model, and llm_params.api_key are configured")
-            logger.warning("See TROUBLESHOOTING_LLM_EXTRACTION.md for complete guide")
-            logger.warning("=" * 80)
+            warning_msg = (
+                "\n" + "=" * 80 + "\n"
+                "No prompt_template configured - LLM extraction will be skipped!\n"
+                "To enable LLM extraction and custom structured data:\n"
+                "1. Set 'prompt_template' field in your task configuration\n"
+                "2. Set 'output_schema' field (optional but recommended)\n"
+                "3. Ensure llm_provider, llm_model, and llm_params.api_key are configured\n"
+                "See TROUBLESHOOTING_LLM_EXTRACTION.md for complete guide\n"
+                + "=" * 80
+            )
+            logger.warning(warning_msg)
         
         if task.output_schema:
             # Only convert to string if debug logging is enabled
