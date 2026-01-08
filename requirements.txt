@@ -10,8 +10,9 @@ psycopg2-binary==2.9.10
 alembic==1.14.0
 
 # Task Queue
-rq==2.0.0
+rq==2.6.1
 redis==5.2.0
+click<8.2.0  # Pin click version to avoid duplicate parameter warnings with RQ (see rq/rq#2253)
 
 # Storage
 minio==7.2.10
