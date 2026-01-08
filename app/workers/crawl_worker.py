@@ -99,6 +99,8 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         
         # Show data cleaning configuration
         logger.info("Data Cleaning Configuration:")
+        # Stage 1 is always enabled in the current implementation via PruningContentFilter
+        # configured in crawler_service.py (if MARKDOWN_GENERATOR_AVAILABLE)
         logger.info("  • Stage 1 (crawl4ai): ENABLED - Removes headers, footers, navigation")
         
         if llm_config and task.prompt_template:
@@ -107,9 +109,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             logger.info(f"    - Model: {llm_config['model']}")
             logger.info(f"    - Prompt template: {len(task.prompt_template)} characters")
             if task.output_schema:
-                logger.info(f"    - Output schema: configured")
+                logger.info("    - Output schema: configured")
             else:
-                logger.info(f"    - Output schema: not configured (will use free-form)")
+                logger.info("    - Output schema: not configured (will use free-form)")
         elif llm_config:
             logger.warning("  • Stage 2 (LLM extraction): DISABLED - No prompt_template configured")
             logger.warning("    To enable Stage 2 extraction, add 'prompt_template' to task config")
