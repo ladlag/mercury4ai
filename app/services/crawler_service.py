@@ -13,6 +13,7 @@ import uuid
 # Try to import markdown generation strategy (may not be available in all versions)
 try:
     from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
+    from crawl4ai.content_filter_strategy import PruningContentFilter
     MARKDOWN_GENERATOR_AVAILABLE = True
 except ImportError:
     MARKDOWN_GENERATOR_AVAILABLE = False
@@ -62,6 +63,10 @@ def extract_markdown_versions(markdown_result: Any) -> Dict[str, Optional[str]]:
     """
     Extract both raw and fit (cleaned) markdown from crawl4ai result.
     
+    In crawl4ai 0.7.8+:
+    - result.markdown is a MarkdownGenerationResult object
+    - It has properties: raw_markdown (full), fit_markdown (cleaned), fit_html
+    
     fit_markdown is the cleaned version with headers, footers, and navigation removed by crawl4ai.
     raw_markdown is the original full markdown.
     
@@ -76,23 +81,29 @@ def extract_markdown_versions(markdown_result: Any) -> Dict[str, Optional[str]]:
     if markdown_result is None:
         return result
     
-    # If it's already a string, use it for both
+    # If it's already a string, use it for both (backward compatibility)
     if isinstance(markdown_result, str):
         result['raw'] = markdown_result
         result['fit'] = markdown_result
         return result
     
     # If it's a MarkdownGenerationResult object, extract both versions
+    # This is the expected format in crawl4ai 0.7.8+
     if hasattr(markdown_result, 'raw_markdown'):
         result['raw'] = markdown_result.raw_markdown
     if hasattr(markdown_result, 'fit_markdown'):
         result['fit'] = markdown_result.fit_markdown
     
-    # If we don't have both, use what we have for both
-    if result['raw'] and not result['fit']:
-        result['fit'] = result['raw']
-    elif result['fit'] and not result['raw']:
-        result['raw'] = result['fit']
+    # Only use fallback if both raw and fit are unavailable (edge case)
+    # This helps identify when the content filter is not working properly
+    if not result['raw'] and not result['fit']:
+        # Last resort: try to convert to string
+        try:
+            fallback_str = str(markdown_result)
+            result['raw'] = fallback_str
+            result['fit'] = fallback_str
+        except (TypeError, AttributeError, ValueError):
+            pass
     
     return result
 
@@ -182,11 +193,21 @@ class CrawlerService:
             # This enables crawl4ai's built-in cleaning (Stage 1 cleaning)
             if MARKDOWN_GENERATOR_AVAILABLE:
                 try:
+                    # Use PruningContentFilter to remove headers, footers, navigation, ads, etc.
+                    # Based on crawl4ai documentation: https://docs.crawl4ai.com/core/fit-markdown/
+                    # threshold=0.48 keeps blocks with text density >= 48% (balance between precision and recall)
+                    # threshold_type="dynamic" adjusts threshold based on content characteristics
+                    # min_word_threshold=0 includes short blocks if they meet density requirements
+                    content_filter = PruningContentFilter(
+                        threshold=0.48,
+                        threshold_type="dynamic",
+                        min_word_threshold=0
+                    )
                     markdown_generator = DefaultMarkdownGenerator(
-                        content_filter=None  # Will generate both raw and fit markdown
+                        content_filter=content_filter
                     )
                     crawl_params['markdown_generator'] = markdown_generator
-                    logger.debug("Markdown generator configured for both raw and fit markdown")
+                    logger.debug("Markdown generator configured with PruningContentFilter for content cleaning")
                 except Exception as e:
                     logger.warning(f"Could not configure markdown generator: {e}. Will use default markdown generation.")
             else:
@@ -289,32 +310,24 @@ class CrawlerService:
             
             logger.info(f"Crawl completed successfully for: {url}")
             
-            # Check for specific markdown-related properties (targeted approach)
-            if logger.isEnabledFor(logging.DEBUG):
-                # Check for key properties we're interested in
-                has_fit_markdown = hasattr(result, 'fit_markdown')
-                has_raw_markdown = hasattr(result, 'raw_markdown')
-                has_cleaned_html = hasattr(result, 'cleaned_html')
-                logger.debug(f"Result properties: fit_markdown={has_fit_markdown}, raw_markdown={has_raw_markdown}, cleaned_html={has_cleaned_html}")
-            
             # Extract both raw and fit (cleaned) markdown versions
-            # fit_markdown has headers, footers, navigation removed by crawl4ai
+            # In crawl4ai 0.7.8+, result.markdown is a MarkdownGenerationResult object
+            # with properties: raw_markdown (full), fit_markdown (cleaned), fit_html
             markdown_versions = extract_markdown_versions(result.markdown)
             
-            # Check if result has fit_markdown directly (crawl4ai 0.7.8+)
-            if hasattr(result, 'fit_markdown') and result.fit_markdown:
-                markdown_versions['fit'] = result.fit_markdown
-                if logger.isEnabledFor(logging.DEBUG):
-                    logger.debug(f"Using result.fit_markdown directly: {len(result.fit_markdown)} characters")
-            
-            # Check if result.markdown is an object with properties (only when debug logging is enabled)
-            if logger.isEnabledFor(logging.DEBUG) and hasattr(result.markdown, '__dict__'):
-                logger.debug(f"result.markdown is an object with properties: {list(vars(result.markdown).keys())}")
-            
+            # Log what we extracted
             if markdown_versions['raw']:
                 logger.debug(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
             if markdown_versions['fit']:
                 logger.debug(f"Extracted fit markdown (cleaned by crawl4ai): {len(markdown_versions['fit'])} characters")
+            else:
+                # If no fit markdown extracted, log more details for debugging
+                logger.warning("No fit_markdown extracted - content filter may not be working")
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug(f"result.markdown type: {type(result.markdown)}")
+                    if hasattr(result.markdown, '__dict__'):
+                        logger.debug(f"result.markdown properties: {list(vars(result.markdown).keys())}")
+
             
             crawl_result = {
                 'success': True,
