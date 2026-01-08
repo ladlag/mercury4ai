@@ -150,28 +150,37 @@ Crawl4ai cleaning: 7784 -> 7784 chars (reduced 0.0%)
 清洗前后字符数相同。
 
 ### 原因 / Root Cause
-Crawl4ai 0.7.8+ 默认只返回一个markdown字符串，不会自动生成"cleaned"版本。
+**已修复！** 在之前的版本中，markdown生成器没有配置 `PruningContentFilter`，导致无法去除header、footer、navigation等冗余内容。
 
-### 当前状态 / Current Status
-**已添加调试日志** - 最新代码会输出以下信息:
+**Fixed!** In previous versions, the markdown generator was not configured with `PruningContentFilter`, which prevented removal of headers, footers, navigation, and other redundant content.
+
+### 解决方案 / Solution
+**最新代码已自动启用内容过滤** - 现在系统会自动使用 `PruningContentFilter` 清洗markdown。
+
+**Content filtering now enabled automatically** - The system now automatically uses `PruningContentFilter` to clean markdown.
+
+你会在日志中看到 / You will see in logs:
 ```
-DEBUG - Available result properties: markdown, html, cleaned_html, ...
-DEBUG - result.markdown is an object with properties: ['raw_markdown', 'fit_markdown']
+DEBUG - Markdown generator configured with PruningContentFilter for content cleaning
+DEBUG - Extracted raw markdown: 7784 characters
+DEBUG - Extracted fit markdown (cleaned by crawl4ai): 3245 characters
+INFO - Crawl4ai cleaning: 7784 -> 3245 chars (reduced 58.3%)
 ```
 
-这将帮助我们了解crawl4ai 0.7.8+的实际行为。
+### 清洗策略 / Cleaning Strategy
 
-### 可能的解决方案 / Possible Solutions
+系统现在使用两阶段清洗 / The system now uses two-stage cleaning:
 
-#### 方案A: 使用LLM清洗 (推荐) / Solution A: Use LLM Cleaning (Recommended)
+#### Stage 1: Crawl4ai自动清洗 (PruningContentFilter)
+- **自动启用** - 无需配置
+- 移除：headers, footers, navigation, sidebars, ads
+- 保留：core content with text density >= 48%
+- 结果：生成 `fit_markdown` (cleaned version)
 
-LLM提取本身就是最好的"清洗"方法：
-- Stage 1: Crawl4ai基础清洗 (自动)
-- Stage 2: LLM结构化提取 (配置 `prompt_template`)
-
-LLM extraction is the best "cleaning" method:
-- Stage 1: Crawl4ai basic cleaning (automatic)
-- Stage 2: LLM structured extraction (configure `prompt_template`)
+#### Stage 2: LLM结构化提取 (可选 / Optional)
+- **需要配置** `prompt_template` 和 `output_schema`
+- 提取：按照自定义schema的结构化数据
+- 结果：生成JSON文件
 
 ```yaml
 prompt_template: |
@@ -187,7 +196,13 @@ prompt_template: |
   - 发布日期
 ```
 
-#### 方案B: 使用CSS选择器 / Solution B: Use CSS Selectors
+### 进一步优化 / Further Optimization
+
+如果默认的清洗效果不够理想，可以使用以下方法进一步优化：
+
+If the default cleaning is not sufficient, you can further optimize using:
+
+#### 方法A: 使用CSS选择器精确定位 / Method A: Use CSS Selectors
 
 在 `crawl_config` 中指定主内容区域:
 
@@ -198,16 +213,12 @@ crawl_config:
   wait_for: ".content"
 ```
 
-这样crawl4ai只会提取指定区域的内容，自然就"清洗"了。
+这样crawl4ai只会提取指定区域的内容，效果更精准。
 
-#### 方案C: 等待crawl4ai修复 / Solution C: Wait for crawl4ai Fix
+#### 方法B: 配置LLM提取 / Method B: Configure LLM Extraction
 
-我们已经添加了代码尝试启用crawl4ai的markdown生成器:
-```python
-markdown_generator = DefaultMarkdownGenerator(content_filter=None)
-```
+LLM提取会进一步清洗和结构化内容，是最强大的方式。参见"问题1"的配置方法。
 
-如果crawl4ai 0.7.8+支持这个功能，它会自动生成cleaned markdown。
 
 ## 完整诊断流程 / Complete Diagnostic Process
 
