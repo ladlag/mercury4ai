@@ -99,8 +99,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         
         # Show data cleaning configuration
         logger.info("Data Cleaning Configuration:")
-        # Stage 1 is always enabled in the current implementation via PruningContentFilter
-        # configured in crawler_service.py (if MARKDOWN_GENERATOR_AVAILABLE)
+        # Stage 1 cleaning is enabled if MARKDOWN_GENERATOR_AVAILABLE (crawl4ai 0.7.8+)
+        # The PruningContentFilter is configured automatically in crawler_service.py
+        # If not available, crawl4ai will still clean content but without the advanced filter
         logger.info("  • Stage 1 (crawl4ai): ENABLED - Removes headers, footers, navigation")
         
         if llm_config and task.prompt_template:
@@ -218,6 +219,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     URLRegistryService.register_url(db, url, task_id)
                     
                     # Log summary of what was generated for this URL
+                    # Using two separate log lines for better readability in log viewers
                     files_generated = []
                     if crawl_result.get('markdown'):
                         files_generated.append("raw markdown")
