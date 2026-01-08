@@ -87,45 +87,36 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             started_at=datetime.utcnow()
         )
         
-        logger.info(f"Starting crawl task {task_id}, run {run_id}")
-        logger.info(f"Task name: {task.name}, URLs to crawl: {len(task.urls)}")
+        logger.info("=" * 80)
+        logger.info(f"Starting crawl task: {task.name}")
+        logger.info(f"Task ID: {task_id}")
+        logger.info(f"Run ID: {run_id}")
+        logger.info(f"URLs to crawl: {len(task.urls)}")
+        logger.info("=" * 80)
         
         # Prepare LLM config using defaults if task config is incomplete
         llm_config = merge_llm_config(task)
-        if llm_config:
-            logger.info(f"LLM config: provider={llm_config['provider']}, model={llm_config['model']}")
-            # Check if API key is present
-            if llm_config.get('params', {}).get('api_key'):
-                logger.debug("API key is configured in LLM params")
-            else:
-                logger.warning("API key is missing in LLM params - extraction may fail")
-        else:
-            logger.info("No LLM config available - will perform basic crawling without structured extraction")
         
-        # Log prompt and schema configuration
-        if task.prompt_template:
-            logger.info(f"Prompt template configured: {len(task.prompt_template)} chars")
-        else:
-            warning_msg = (
-                "\n" + "=" * 80 + "\n"
-                "No prompt_template configured - LLM extraction will be skipped!\n"
-                "To enable LLM extraction and custom structured data:\n"
-                "1. Set 'prompt_template' field in your task configuration\n"
-                "2. Set 'output_schema' field (optional but recommended)\n"
-                "3. Ensure llm_provider, llm_model, and llm_params.api_key are configured\n"
-                "See TROUBLESHOOTING_LLM_EXTRACTION.md for complete guide\n"
-                + "=" * 80
-            )
-            logger.warning(warning_msg)
+        # Show data cleaning configuration
+        logger.info("Data Cleaning Configuration:")
+        logger.info("  • Stage 1 (crawl4ai): ENABLED - Removes headers, footers, navigation")
         
-        if task.output_schema:
-            # Only convert to string if debug logging is enabled
-            if logger.isEnabledFor(logging.DEBUG):
-                logger.debug(f"Output schema configured: {len(str(task.output_schema))} chars")
+        if llm_config and task.prompt_template:
+            logger.info("  • Stage 2 (LLM extraction): ENABLED - Extracts structured data")
+            logger.info(f"    - Provider: {llm_config['provider']}")
+            logger.info(f"    - Model: {llm_config['model']}")
+            logger.info(f"    - Prompt template: {len(task.prompt_template)} characters")
+            if task.output_schema:
+                logger.info(f"    - Output schema: configured")
             else:
-                logger.info("Output schema configured")
+                logger.info(f"    - Output schema: not configured (will use free-form)")
+        elif llm_config:
+            logger.warning("  • Stage 2 (LLM extraction): DISABLED - No prompt_template configured")
+            logger.warning("    To enable Stage 2 extraction, add 'prompt_template' to task config")
         else:
-            logger.info("No output_schema configured (optional for LLM extraction)")
+            logger.info("  • Stage 2 (LLM extraction): DISABLED - No LLM config")
+        
+        logger.info("=" * 80)
         
         # Statistics
         urls_crawled = 0
@@ -224,8 +215,17 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     # Register URL as crawled
                     URLRegistryService.register_url(db, url, task_id)
                     
-                    # Log success once at the end
-                    logger.info(f"Successfully processed URL {idx}/{len(task.urls)}: {url}")
+                    # Log summary of what was generated for this URL
+                    files_generated = []
+                    if crawl_result.get('markdown'):
+                        files_generated.append("raw markdown")
+                    if crawl_result.get('markdown_fit'):
+                        files_generated.append("cleaned markdown (Stage 1)")
+                    if crawl_result.get('structured_data'):
+                        files_generated.append("structured JSON (Stage 2)")
+                    
+                    logger.info(f"✓ Successfully processed URL {idx}/{len(task.urls)}: {url}")
+                    logger.info(f"  Generated files: {', '.join(files_generated) if files_generated else 'none'}")
                     
                 except Exception as e:
                     # Rollback the session to clear any pending transactions
@@ -303,8 +303,25 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             logs_path=f"{today}/{run_id}/logs"
         )
         
-        logger.info(f"Crawl task {task_id} completed successfully")
-        logger.info(f"Summary: {urls_crawled} URLs crawled, {urls_failed} failed, {documents_created} documents created")
+        # Log final summary with data cleaning information
+        logger.info("=" * 80)
+        logger.info(f"✓ Crawl task {task_id} completed successfully")
+        logger.info(f"Summary:")
+        logger.info(f"  - URLs crawled: {urls_crawled}")
+        logger.info(f"  - URLs failed: {urls_failed}")
+        logger.info(f"  - Documents created: {documents_created}")
+        logger.info(f"  - MinIO path: {today}/{run_id}")
+        
+        # Indicate what types of cleaning/extraction were performed
+        cleaning_stages = []
+        if documents_created > 0:
+            cleaning_stages.append("Stage 1 (crawl4ai cleaning)")
+        if llm_config and task.prompt_template:
+            cleaning_stages.append("Stage 2 (LLM extraction)")
+        
+        if cleaning_stages:
+            logger.info(f"  - Data cleaning performed: {', '.join(cleaning_stages)}")
+        logger.info("=" * 80)
         
     except Exception as e:
         logger.error(f"Error executing crawl task {task_id}: {str(e)}", exc_info=True)
@@ -355,14 +372,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 crawl_result['markdown_fit'].encode('utf-8'),
                 'text/markdown'
             )
-            logger.info(f"Saved cleaned markdown (fit) to MinIO: {markdown_fit_path}")
-            
-            # Log cleaning statistics
-            if crawl_result.get('markdown'):
-                original_len = len(crawl_result['markdown'])
-                cleaned_len = len(crawl_result['markdown_fit'])
-                reduction = ((original_len - cleaned_len) / original_len * 100) if original_len > 0 else 0
-                logger.info(f"Crawl4ai cleaning: {original_len} -> {cleaned_len} chars (reduced {reduction:.1f}%)")
+            logger.info(f"Saved cleaned markdown (Stage 1) to MinIO: {markdown_fit_path}")
         
         # Save structured data as JSON (second-level cleaning by LLM with custom schema)
         if crawl_result.get('structured_data'):
@@ -374,7 +384,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
                 json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8'),
                 'application/json'
             )
-            logger.info(f"Saved structured data (LLM extraction) to MinIO: {json_path}")
+            logger.info(f"Saved structured data (Stage 2) to MinIO: {json_path}")
         
         # Save screenshot if available
         if crawl_result.get('screenshot'):
