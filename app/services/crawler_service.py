@@ -10,6 +10,8 @@ import httpx
 from urllib.parse import urlparse
 import uuid
 
+logger = logging.getLogger(__name__)
+
 # Try to import markdown generation strategy (may not be available in all versions)
 try:
     from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
@@ -18,7 +20,13 @@ try:
 except ImportError:
     MARKDOWN_GENERATOR_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
+# Try to import LLMConfig for crawl4ai 0.7.8+ compatibility
+try:
+    from crawl4ai.async_configs import LLMConfig
+    LLMCONFIG_AVAILABLE = True
+except ImportError:
+    LLMCONFIG_AVAILABLE = False
+    logger.warning("LLMConfig not available - crawl4ai 0.7.8+ is required for LLM extraction")
 
 
 def extract_markdown_string(markdown_result: Any) -> Optional[str]:
@@ -123,6 +131,93 @@ CHINESE_LLM_PROVIDERS = {
         'base_url': None,  # Uses default Deepseek endpoint
     },
 }
+
+
+def build_llm_config(
+    provider: str,
+    model: str,
+    params: Dict[str, Any]
+) -> Optional[Any]:
+    """
+    Build LLMConfig for crawl4ai 0.7.8+ compatibility.
+    
+    Args:
+        provider: LLM provider name (e.g., 'openai', 'qwen', 'deepseek')
+        model: Model name (e.g., 'gpt-4', 'deepseek-chat', 'qwen-turbo')
+        params: Additional parameters including api_key, base_url, temperature, etc.
+    
+    Returns:
+        LLMConfig instance or None if construction fails
+    """
+    if not LLMCONFIG_AVAILABLE:
+        logger.error("LLMConfig not available - cannot create LLM extraction strategy. "
+                    "Please ensure crawl4ai>=0.7.8 is installed.")
+        return None
+    
+    try:
+        # Extract API key from params (it's stored in task.llm_params)
+        # Support both 'api_key' and 'api_token' for backward compatibility
+        api_key = params.get('api_key') or params.get('api_token')
+        
+        if not api_key:
+            logger.warning("No API key provided for LLM extraction. LLM extraction will be skipped.")
+            return None
+        
+        # Handle Chinese LLM providers
+        provider_lower = provider.lower()
+        full_model = model
+        base_url = params.get('base_url')
+        
+        if provider_lower in CHINESE_LLM_PROVIDERS:
+            provider_config = CHINESE_LLM_PROVIDERS[provider_lower]
+            
+            # Set model with proper prefix for LiteLLM compatibility
+            if provider_config['model_prefix']:
+                full_model = f"{provider_config['model_prefix']}{model}"
+            
+            # Set base_url if configured for this provider and not already set
+            if provider_config['base_url'] and not base_url:
+                base_url = provider_config['base_url']
+            
+            logger.debug(f"Using Chinese LLM provider: {provider_lower}, full_model: {full_model}")
+        else:
+            # For standard providers (openai, anthropic, etc.), use provider/model format
+            full_model = f"{provider}/{model}" if '/' not in model else model
+            logger.debug(f"Using standard LLM provider: {provider}, full_model: {full_model}")
+        
+        # Build LLMConfig with all supported parameters
+        llm_config_params = {
+            'provider': full_model,
+            'api_token': api_key,
+        }
+        
+        # Add optional parameters if present
+        if base_url:
+            llm_config_params['base_url'] = base_url
+        if 'temperature' in params:
+            llm_config_params['temperature'] = params['temperature']
+        if 'max_tokens' in params:
+            llm_config_params['max_tokens'] = params['max_tokens']
+        if 'top_p' in params:
+            llm_config_params['top_p'] = params['top_p']
+        if 'frequency_penalty' in params:
+            llm_config_params['frequency_penalty'] = params['frequency_penalty']
+        if 'presence_penalty' in params:
+            llm_config_params['presence_penalty'] = params['presence_penalty']
+        if 'stop' in params:
+            llm_config_params['stop'] = params['stop']
+        if 'n' in params:
+            llm_config_params['n'] = params['n']
+        
+        # Create LLMConfig instance
+        llm_config = LLMConfig(**llm_config_params)
+        
+        logger.debug(f"LLMConfig created successfully: provider={full_model}, base_url={base_url}")
+        return llm_config
+        
+    except Exception as e:
+        logger.error(f"Failed to create LLMConfig: {e}", exc_info=True)
+        return None
 
 
 class CrawlerService:
@@ -253,52 +348,29 @@ class CrawlerService:
                     logger.debug(f"Prompt template length: {len(prompt_template)} chars")
                     logger.debug(f"Output schema provided: {output_schema is not None}")
                 
-                # Extract API key from params (it's stored in task.llm_params)
-                api_key = params.get('api_key')
-                
-                if not api_key:
-                    logger.warning("No API key provided for LLM extraction. LLM extraction will be skipped.")
-                else:
-                    logger.debug("API key is present")
-                
-                # Handle Chinese LLM providers
-                provider_lower = provider.lower()
-                if provider_lower in CHINESE_LLM_PROVIDERS:
-                    provider_config = CHINESE_LLM_PROVIDERS[provider_lower]
+                # Build LLMConfig for crawl4ai 0.7.8+ compatibility
+                try:
+                    llm_config_obj = build_llm_config(provider, model, params)
                     
-                    # Set model with proper prefix
-                    if provider_config['model_prefix']:
-                        full_model = f"{provider_config['model_prefix']}{model}"
+                    if llm_config_obj is None:
+                        # build_llm_config already logged the reason for failure
+                        logger.warning("Stage 2 extraction disabled: Failed to create LLMConfig. "
+                                     "Continuing with Stage 1 only.")
                     else:
-                        full_model = model
-                    
-                    logger.debug(f"Using Chinese LLM provider: {provider_lower}, full_model: {full_model}")
-                    
-                    # Set base_url if configured
-                    if provider_config['base_url']:
-                        params['base_url'] = provider_config['base_url']
-                    
-                    # Use the full model name as provider for LiteLLM
-                    extraction_strategy = LLMExtractionStrategy(
-                        provider=full_model,
-                        api_token=api_key,
-                        instruction=prompt_template,
-                        schema=output_schema,
-                        **params
-                    )
-                else:
-                    # Standard provider (openai, anthropic, etc.)
-                    logger.debug(f"Using standard LLM provider: {provider}")
-                    extraction_strategy = LLMExtractionStrategy(
-                        provider=provider,
-                        api_token=api_key,
-                        instruction=prompt_template,
-                        schema=output_schema,
-                        **params
-                    )
-                
-                crawl_params['extraction_strategy'] = extraction_strategy
-                logger.info("Stage 2 extraction enabled: LLM will extract structured data using custom schema")
+                        # Create LLMExtractionStrategy with LLMConfig
+                        extraction_strategy = LLMExtractionStrategy(
+                            llm_config=llm_config_obj,
+                            instruction=prompt_template,
+                            schema=output_schema
+                        )
+                        
+                        crawl_params['extraction_strategy'] = extraction_strategy
+                        logger.info("Stage 2 extraction enabled: LLM will extract structured data using custom schema")
+                        
+                except Exception as e:
+                    # If LLMExtractionStrategy creation fails, log and continue without it
+                    logger.error(f"Failed to create LLM extraction strategy: {e}", exc_info=True)
+                    logger.warning("Stage 2 extraction disabled due to error. Continuing with Stage 1 only.")
             else:
                 # Log why LLM extraction is not being used
                 if not llm_config:
