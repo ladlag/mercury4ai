@@ -7,10 +7,11 @@ class CrawlConfigSchema(BaseModel):
     """Configuration for crawl4ai crawler"""
     js_code: Optional[str] = Field(None, description="JavaScript code to execute on page before crawling (e.g., scroll, click buttons)")
     wait_for: Optional[str] = Field(None, description="CSS selector to wait for before crawling (ensures dynamic content loads)")
-    css_selector: Optional[str] = Field(None, description="CSS selector to extract specific content (narrows focus to main content)")
+    css_selector: Optional[str] = Field(None, description="CSS selector to extract specific content (narrows focus to main content, e.g., 'article, .content, .main')")
     screenshot: bool = Field(False, description="Capture page screenshot (increases storage requirements)")
     pdf: bool = Field(False, description="Generate PDF of page (increases storage requirements)")
     verbose: bool = Field(True, description="Enable detailed logging during crawl")
+    content_filter_threshold: Optional[float] = Field(None, description="PruningContentFilter threshold (0.0-1.0, default 0.40 for Chinese content). Lower = more inclusive.")
 
 
 class LLMConfigSchema(BaseModel):

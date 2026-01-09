@@ -195,11 +195,21 @@ class CrawlerService:
                 try:
                     # Use PruningContentFilter to remove headers, footers, navigation, ads, etc.
                     # Based on crawl4ai documentation: https://docs.crawl4ai.com/core/fit-markdown/
-                    # threshold=0.48 keeps blocks with text density >= 48% (balance between precision and recall)
-                    # threshold_type="dynamic" adjusts threshold based on content characteristics
-                    # min_word_threshold=0 includes short blocks if they meet density requirements
+                    # 
+                    # Threshold configuration:
+                    # - threshold=0.48 is default, keeps blocks with text density >= 48%
+                    # - For Chinese educational websites, we use 0.40 to be more inclusive
+                    #   (Chinese characters have higher information density)
+                    # - threshold_type="dynamic" adjusts threshold based on content characteristics
+                    # - min_word_threshold=0 includes short blocks if they meet density requirements
+                    # 
+                    # User can override by using css_selector in crawl_config
+                    threshold = 0.40  # More inclusive for Chinese content
+                    if crawl_config.get('content_filter_threshold'):
+                        threshold = crawl_config['content_filter_threshold']
+                    
                     content_filter = PruningContentFilter(
-                        threshold=0.48,
+                        threshold=threshold,
                         threshold_type="dynamic",
                         min_word_threshold=0
                     )
@@ -207,7 +217,7 @@ class CrawlerService:
                         content_filter=content_filter
                     )
                     crawl_params['markdown_generator'] = markdown_generator
-                    logger.info("Stage 1 cleaning enabled: PruningContentFilter will remove headers, footers, and navigation")
+                    logger.info(f"Stage 1 cleaning enabled: PruningContentFilter (threshold={threshold}) will remove headers, footers, and navigation")
                 except Exception as e:
                     logger.warning(f"Could not configure markdown generator: {e}. Will use default markdown generation.")
             else:
@@ -315,16 +325,41 @@ class CrawlerService:
             # with properties: raw_markdown (full), fit_markdown (cleaned), fit_html
             markdown_versions = extract_markdown_versions(result.markdown)
             
-            # Log what we extracted
+            # Log what we extracted and provide diagnostics for Stage 1 cleaning
             if markdown_versions['raw']:
                 logger.info(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
+            
             if markdown_versions['fit']:
                 # Calculate and log cleaning statistics
                 raw_len = len(markdown_versions['raw']) if markdown_versions['raw'] else 0
                 fit_len = len(markdown_versions['fit'])
+                
                 if raw_len > 0:
                     reduction = ((raw_len - fit_len) / raw_len * 100)
                     logger.info(f"Stage 1 cleaning completed: {raw_len} -> {fit_len} chars (reduced {reduction:.1f}%)")
+                    
+                    # Provide diagnostics if cleaning ratio is very low (< 5%)
+                    if reduction < 5.0:
+                        logger.warning("⚠ Stage 1 cleaning reduced very little content (< 5%)")
+                        logger.warning("Possible reasons:")
+                        logger.warning("  1. Page content is already clean (no headers/footers/navigation)")
+                        logger.warning("  2. Page structure prevents PruningContentFilter from working effectively")
+                        logger.warning("  3. css_selector not configured - crawl4ai processed entire page")
+                        logger.warning("")
+                        logger.warning("Recommendations to improve Stage 1 cleaning:")
+                        logger.warning("  • Add 'css_selector' to crawl_config to target main content area:")
+                        logger.warning("    Example selectors: 'article, .article, .content, .main, .main-content,")
+                        logger.warning("                       .detail, .detail-content, #content, #main, .post-content'")
+                        logger.warning("  • Inspect the page HTML to find the main content container CSS selector")
+                        logger.warning("  • Use browser DevTools to identify the right selector")
+                        
+                        # Check if css_selector was used
+                        css_selector = crawl_config.get('css_selector')
+                        if css_selector:
+                            logger.info(f"  Note: css_selector is configured: '{css_selector}'")
+                            logger.info("  The selector might be too broad or not matching main content.")
+                        else:
+                            logger.info("  Note: No css_selector configured - processing entire page")
                 else:
                     logger.info(f"Extracted cleaned markdown: {fit_len} characters")
             else:

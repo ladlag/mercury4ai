@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from app.models import CrawlTask, CrawlTaskRun, Document, DocumentImage, DocumentAttachment, CrawledUrlRegistry
 from app.schemas import TaskCreateRequest, TaskUpdateRequest
+from app.core.template_resolver import resolve_template_in_task_data
 from typing import List, Optional, Dict, Any
 import json
 import yaml
@@ -107,6 +108,13 @@ class TaskService:
             data = yaml.safe_load(content)
         else:
             data = json.loads(content)
+        
+        # Resolve template and schema file references (@prompt_templates/@schemas)
+        try:
+            data = resolve_template_in_task_data(data)
+        except (FileNotFoundError, ValueError) as e:
+            logger.error(f"Failed to resolve template/schema references: {str(e)}")
+            raise ValueError(f"Template/schema reference error: {str(e)}")
         
         # Convert only_after_date string to datetime if present
         if data.get('only_after_date'):

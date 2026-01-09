@@ -8,19 +8,21 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 
 - **FastAPI RESTful API** with API Key authentication
 - **Task Queue Processing** using RQ and Redis
-- **Two-Stage Content Cleaning**:
-  - **Stage 1**: Crawl4ai automatically removes headers, footers, and navigation
+- **Two-Stage Content Cleaning** with diagnostics:
+  - **Stage 1**: Crawl4ai automatically removes headers, footers, and navigation (adjustable threshold)
   - **Stage 2**: LLM extraction with custom prompts and JSON schemas per task
 - **LLM-Powered Extraction** via crawl4ai with schema-based structured output
 - **Chinese LLM Support** - DeepSeek (深度求索), Qwen (通义千问), ERNIE (文心一言)
 - **PostgreSQL Storage** for tasks, runs, and documents
 - **MinIO Object Storage** for artifacts (markdown, JSON, images, attachments, logs)
-- **Reusable Templates** for prompts and output schemas
+- **Reusable Templates** for prompts and output schemas (with `@prompt_templates/` and `@schemas/` file references)
+- **Default Prompt Configuration** via environment variables
 - **Intelligent Media Handling** with fallback download strategy
 - **URL Deduplication** and incremental crawling support
 - **Task Import/Export** in JSON and YAML formats
 - **Complete Artifact Archiving** with manifest and resource index
 - **Docker Compose** deployment for easy setup
+- **Auto-Diagnostics** for cleaning issues with actionable suggestions
 
 ## Documentation
 
@@ -250,7 +252,48 @@ See the `examples/` directory for sample task configurations:
 - `task_chinese_llm_qwen.yaml` - Qwen/Tongyi Qianwen configuration
 - `task_bjhdedu_list_crawl.yaml` - Real-world list page crawling with Chinese LLM
 
+**Template Reference Examples:**
+- `task_news_with_template.yaml` - Uses reusable template files
+- `task_product_with_template.yaml` - Product extraction with templates
+
 For detailed Chinese LLM setup, see [CONFIG.md](CONFIG.md#chinese-llm-setup).
+
+### Using Reusable Templates
+
+Mercury4AI supports reusable prompt templates and output schemas via file references:
+
+```yaml
+name: "News Extraction"
+urls:
+  - https://example.com/news
+
+# Reference template files instead of inline content
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+```
+
+**Available templates:**
+- `@prompt_templates/news_article_zh.txt` - Chinese news extraction
+- `@prompt_templates/news_article_en.txt` - English news extraction
+- `@prompt_templates/product_info_zh.txt` - Product information extraction
+- `@prompt_templates/detail_page_extract_full.txt` - Full detail page extraction
+- And more in `prompt_templates/` directory
+
+See [prompt_templates/README.md](prompt_templates/README.md) for complete template list.
+
+### Configuring Default Prompt
+
+Set a default prompt template in your `.env` file for all tasks:
+
+```bash
+# Use inline text
+DEFAULT_PROMPT_TEMPLATE=Extract title, content, and date from the page.
+
+# Or use a file reference
+DEFAULT_PROMPT_TEMPLATE=@prompt_templates/detail_page_extract_full.txt
+```
+
+Tasks without a `prompt_template` will automatically use this default.
 
 ### Export/Import Tasks
 
@@ -275,6 +318,46 @@ curl -X POST http://localhost:8000/api/tasks/import?format=json \
 curl http://localhost:8000/api/tasks \
   -H "X-API-Key: your-api-key"
 ```
+
+### Optimizing Stage 1 Cleaning
+
+If Stage 1 cleaning reduces very little content (< 5%), the system will automatically log diagnostic information. To improve cleaning effectiveness:
+
+**Method 1: Use CSS Selectors (Recommended)**
+
+Target the main content area using CSS selectors:
+
+```json
+{
+  "crawl_config": {
+    "css_selector": "article, .content, .main-content"
+  }
+}
+```
+
+Common selectors for Chinese educational sites:
+```
+article, .article, .content, .main, .main-content,
+.detail, .detail-content, #content, #main, .post-content
+```
+
+**Method 2: Adjust Content Filter Threshold**
+
+Lower the threshold to be more inclusive (especially for Chinese content):
+
+```json
+{
+  "crawl_config": {
+    "content_filter_threshold": 0.35
+  }
+}
+```
+
+- Default: `0.40` (optimized for Chinese content)
+- Range: `0.0` - `1.0`
+- Lower = more inclusive, higher = stricter
+
+The system will automatically provide suggestions when cleaning is ineffective. See [TROUBLESHOOTING_LLM_EXTRACTION.md](TROUBLESHOOTING_LLM_EXTRACTION.md) for detailed guidance.
 
 ## MinIO Storage Structure
 

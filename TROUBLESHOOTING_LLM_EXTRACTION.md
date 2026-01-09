@@ -145,43 +145,103 @@ INFO - Saved structured data (LLM extraction) to MinIO: .../json/xxx.json
 
 ### 症状 / Symptoms
 ```
-Crawl4ai cleaning: 7784 -> 7784 chars (reduced 0.0%)
+Stage 1 cleaning: 7784 -> 7784 chars (reduced 0.0%)
 ```
 清洗前后字符数相同。
 
 ### 原因 / Root Cause
-**已修复！** 在之前的版本中，markdown生成器没有配置 `PruningContentFilter`，导致无法去除header、footer、navigation等冗余内容。
+可能的原因包括：
+1. 页面内容本身很干净（没有多余的header、footer、navigation）
+2. PruningContentFilter 阈值不适合该页面结构
+3. 未配置 `css_selector`，导致处理了整个页面
+4. 页面结构特殊，过滤器无法识别冗余内容
 
-**Fixed!** In previous versions, the markdown generator was not configured with `PruningContentFilter`, which prevented removal of headers, footers, navigation, and other redundant content.
+Possible reasons:
+1. Page content is already clean (no redundant headers/footers/navigation)
+2. PruningContentFilter threshold not suitable for page structure
+3. No `css_selector` configured, processing entire page
+4. Special page structure prevents filter from identifying redundant content
 
 ### 解决方案 / Solution
-**最新代码已自动启用内容过滤** - 现在系统会自动使用 `PruningContentFilter` 清洗markdown。
 
-**Content filtering now enabled automatically** - The system now automatically uses `PruningContentFilter` to clean markdown.
+#### 方法A: 使用CSS选择器精确定位 / Method A: Use CSS Selectors (推荐 / Recommended)
 
-你会在日志中看到 / You will see in logs:
+在 `crawl_config` 中指定主内容区域:
+
+```yaml
+crawl_config:
+  verbose: true
+  css_selector: "article, .main-content, .article-body"  # ← 只抓取主要内容
+  wait_for: ".content"
 ```
-DEBUG - Markdown generator configured with PruningContentFilter for content cleaning
-DEBUG - Extracted raw markdown: 7784 characters
-DEBUG - Extracted fit markdown (cleaned by crawl4ai): 3245 characters
-INFO - Crawl4ai cleaning: 7784 -> 3245 chars (reduced 58.3%)
+
+**常用CSS选择器 / Common CSS Selectors:**
+```
+article, .article, .content, .main, .main-content,
+.detail, .detail-content, #content, #main, .post-content,
+.entry-content, .article-content, main
 ```
 
-### 清洗策略 / Cleaning Strategy
+这样crawl4ai只会提取指定区域的内容，效果更精准。
 
-系统现在使用两阶段清洗 / The system now uses two-stage cleaning:
+#### 方法B: 调整内容过滤器阈值 / Method B: Adjust Content Filter Threshold
+
+如果页面内容密度较低，可以降低过滤阈值：
+
+```yaml
+crawl_config:
+  content_filter_threshold: 0.35  # 默认是0.40，更低的值更包容
+```
+
+阈值范围 0.0-1.0：
+- 更高的值（0.5-0.8）= 更严格，只保留高密度文本块
+- 更低的值（0.3-0.4）= 更包容，保留更多内容
+- 默认值 0.40 适合中文教育网站
+
+#### 方法C: 配置LLM提取 / Method C: Configure LLM Extraction
+
+LLM提取（Stage 2）会进一步清洗和结构化内容，是最强大的方式。参见"问题1"的配置方法。
+
+### 清洗策略说明 / Cleaning Strategy Explanation
+
+系统使用两阶段清洗策略 / The system uses a two-stage cleaning strategy:
 
 #### Stage 1: Crawl4ai自动清洗 (PruningContentFilter)
-- **自动启用** - 无需配置
-- 移除：headers, footers, navigation, sidebars, ads
-- 保留：core content with text density >= 48%
-- 结果：生成 `fit_markdown` (cleaned version)
+- **自动启用** - 无需配置 / Automatically enabled - no configuration needed
+- **移除内容 / Removes:**
+  - Headers, footers, navigation, sidebars
+  - Advertisements, social media buttons
+  - Cookie notices, popups
+  - Low text-density blocks
+- **保留内容 / Keeps:**
+  - Core content with text density >= threshold (default 0.40 for Chinese)
+  - Main article body, product descriptions
+  - Relevant images and media
+- **结果 / Result:** 
+  - 生成 `fit_markdown` (cleaned version)
+  - 通常减少 30-60% 的内容 / Typically reduces 30-60% of content
+
+**配置选项 / Configuration Options:**
+```yaml
+crawl_config:
+  css_selector: "article, .content"  # 精确定位主内容区
+  content_filter_threshold: 0.40     # 内容密度阈值 (可选)
+```
 
 #### Stage 2: LLM结构化提取 (可选 / Optional)
-- **需要配置** `prompt_template` 和 `output_schema`
-- 提取：按照自定义schema的结构化数据
-- 结果：生成JSON文件
+- **需要配置 / Requires configuration:**
+  - `prompt_template` - 提取指令
+  - `output_schema` (可选) - 输出结构定义
+  - LLM API key
+- **提取内容 / Extracts:**
+  - 按照自定义schema的结构化数据
+  - 只保留关心的字段
+  - 进行语义理解和清洗
+- **结果 / Result:**
+  - 生成JSON文件
+  - 高度结构化、易于处理
 
+**示例配置 / Example Configuration:**
 ```yaml
 prompt_template: |
   请从这篇文章中提取核心内容，忽略以下内容：
@@ -194,30 +254,14 @@ prompt_template: |
   - 文章标题
   - 正文内容
   - 发布日期
+
+output_schema:
+  type: object
+  properties:
+    title: {type: string}
+    content: {type: string}
+    published_date: {type: string}
 ```
-
-### 进一步优化 / Further Optimization
-
-如果默认的清洗效果不够理想，可以使用以下方法进一步优化：
-
-If the default cleaning is not sufficient, you can further optimize using:
-
-#### 方法A: 使用CSS选择器精确定位 / Method A: Use CSS Selectors
-
-在 `crawl_config` 中指定主内容区域:
-
-```yaml
-crawl_config:
-  verbose: true
-  css_selector: "article, .main-content, .article-body"  # ← 只抓取主要内容
-  wait_for: ".content"
-```
-
-这样crawl4ai只会提取指定区域的内容，效果更精准。
-
-#### 方法B: 配置LLM提取 / Method B: Configure LLM Extraction
-
-LLM提取会进一步清洗和结构化内容，是最强大的方式。参见"问题1"的配置方法。
 
 
 ## 完整诊断流程 / Complete Diagnostic Process
@@ -338,6 +382,97 @@ llm_model: deepseek-chat
 llm_params:
   base_url: "https://api.deepseek.com"  # ← 重要!
 ```
+
+## 高级功能 / Advanced Features
+
+### 功能1: 使用可复用模板 / Feature 1: Using Reusable Templates
+
+系统支持使用文件引用来引用可复用的提示词模板和输出结构：
+
+The system supports file references for reusable prompt templates and output schemas:
+
+```yaml
+name: "中文新闻提取"
+urls:
+  - https://news.example.cn/article1
+
+# 使用文件引用 / Use file references
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+```
+
+**可用模板 / Available Templates:**
+- `@prompt_templates/news_article_zh.txt` - 中文新闻提取
+- `@prompt_templates/news_article_en.txt` - English news extraction
+- `@prompt_templates/product_info_zh.txt` - 中文产品信息提取
+- `@prompt_templates/research_paper.txt` - Research paper extraction
+- `@prompt_templates/detail_page_extract_full.txt` - 详情页完整提取
+- `@prompt_templates/list_page_extract_urls.txt` - 列表页URL提取
+
+**可用结构 / Available Schemas:**
+- `@schemas/news_article_zh.json` - 中文新闻输出结构
+- `@schemas/news_article_en.json` - English news output structure
+- `@schemas/product_info_zh.json` - 中文产品信息输出结构
+- `@schemas/research_paper.json` - Research paper output structure
+- `@schemas/detail_page_full.json` - 详情页完整输出结构
+- `@schemas/list_page_items.json` - 列表页项目输出结构
+
+参见 `prompt_templates/README.md` 了解更多模板。
+
+See `prompt_templates/README.md` for more templates.
+
+### 功能2: 使用默认提示词 / Feature 2: Using Default Prompt Template
+
+如果你的所有任务都使用相同的提示词，可以在环境变量中配置默认提示词：
+
+If all your tasks use the same prompt, you can configure a default prompt in environment variables:
+
+**方法A: 使用内联文本 / Method A: Inline Text**
+```bash
+# .env file
+DEFAULT_PROMPT_TEMPLATE=请从页面中提取标题、内容和发布日期。
+```
+
+**方法B: 使用文件引用 / Method B: File Reference**
+```bash
+# .env file
+DEFAULT_PROMPT_TEMPLATE=@prompt_templates/detail_page_extract_full.txt
+```
+
+这样，如果任务没有配置 `prompt_template`，系统会自动使用默认提示词。
+
+This way, if a task doesn't have a `prompt_template`, the system will automatically use the default prompt.
+
+### 功能3: Stage 1清洗诊断 / Feature 3: Stage 1 Cleaning Diagnostics
+
+当Stage 1清洗效果不好时（减少< 5%），系统会自动输出诊断信息：
+
+When Stage 1 cleaning is ineffective (< 5% reduction), the system automatically provides diagnostic information:
+
+```
+⚠ Stage 1 cleaning reduced very little content (< 5%)
+Possible reasons:
+  1. Page content is already clean (no headers/footers/navigation)
+  2. Page structure prevents PruningContentFilter from working effectively
+  3. css_selector not configured - crawl4ai processed entire page
+
+Recommendations to improve Stage 1 cleaning:
+  • Add 'css_selector' to crawl_config to target main content area:
+    Example selectors: 'article, .article, .content, .main, .main-content,
+                       .detail, .detail-content, #content, #main, .post-content'
+```
+
+系统会告诉你：
+1. 可能的原因
+2. 具体的改进建议
+3. 推荐的CSS选择器列表
+4. 是否已配置css_selector
+
+The system will tell you:
+1. Possible reasons
+2. Specific improvement recommendations
+3. Recommended CSS selector list
+4. Whether css_selector is configured
 
 ## 获取更多帮助 / Get More Help
 
