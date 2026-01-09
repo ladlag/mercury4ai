@@ -46,6 +46,10 @@ def merge_llm_config(task: CrawlTask) -> Optional[Dict[str, Any]]:
     
     # Check if we have enough info to use LLM
     if not llm_provider or not llm_model:
+        logger.info("No LLM provider/model configured. Stage 2 extraction will be disabled.")
+        logger.info("To enable Stage 2 extraction:")
+        logger.info("  1. Set DEFAULT_LLM_PROVIDER and DEFAULT_LLM_MODEL in environment")
+        logger.info("  2. Or specify llm_provider and llm_model in task configuration")
         return None
     
     # Start with default params from settings
@@ -57,7 +61,10 @@ def merge_llm_config(task: CrawlTask) -> Optional[Dict[str, Any]]:
     
     # Check if we have an API key (required for LLM)
     if not merged_params.get('api_key'):
-        logger.warning(f"No API key found for LLM provider {llm_provider}. LLM extraction will be skipped.")
+        logger.warning(f"No API key found for LLM provider {llm_provider}. Stage 2 extraction will be skipped.")
+        logger.warning("To enable Stage 2 extraction:")
+        logger.warning("  1. Set DEFAULT_LLM_API_KEY in environment")
+        logger.warning("  2. Or add 'api_key' to llm_params in task configuration")
         return None
     
     return {
@@ -65,6 +72,36 @@ def merge_llm_config(task: CrawlTask) -> Optional[Dict[str, Any]]:
         'model': llm_model,
         'params': merged_params,
     }
+
+
+def get_prompt_template(task: CrawlTask) -> Optional[str]:
+    """
+    Get prompt template for the task, using default if not specified.
+    
+    Args:
+        task: CrawlTask instance
+    
+    Returns:
+        Prompt template string or None if not available
+    """
+    # Use task-specific prompt if provided
+    if task.prompt_template:
+        return task.prompt_template
+    
+    # Fall back to default prompt from settings
+    default_prompt = settings.DEFAULT_PROMPT_TEMPLATE
+    if default_prompt:
+        logger.info("Using DEFAULT_PROMPT_TEMPLATE from environment configuration")
+        # Resolve file reference if it's a @prompt_templates reference
+        try:
+            from app.core.template_resolver import resolve_file_reference
+            resolved_prompt = resolve_file_reference(default_prompt)
+            return resolved_prompt
+        except Exception as e:
+            logger.error(f"Failed to resolve DEFAULT_PROMPT_TEMPLATE: {str(e)}")
+            return None
+    
+    return None
 
 
 async def execute_crawl_task_async(task_id: str, run_id: str):
@@ -97,6 +134,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # Prepare LLM config using defaults if task config is incomplete
         llm_config = merge_llm_config(task)
         
+        # Get prompt template (from task or default)
+        prompt_template = get_prompt_template(task)
+        
         # Show data cleaning configuration
         logger.info("Data Cleaning Configuration:")
         # Stage 1 cleaning is enabled if MARKDOWN_GENERATOR_AVAILABLE (crawl4ai 0.7.8+)
@@ -104,20 +144,30 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # If not available, crawl4ai will still clean content but without the advanced filter
         logger.info("  • Stage 1 (crawl4ai): ENABLED - Removes headers, footers, navigation")
         
-        if llm_config and task.prompt_template:
+        if llm_config and prompt_template:
             logger.info("  • Stage 2 (LLM extraction): ENABLED - Extracts structured data")
             logger.info(f"    - Provider: {llm_config['provider']}")
             logger.info(f"    - Model: {llm_config['model']}")
-            logger.info(f"    - Prompt template: {len(task.prompt_template)} characters")
+            if task.prompt_template:
+                logger.info(f"    - Prompt template: {len(task.prompt_template)} characters (from task)")
+            else:
+                logger.info(f"    - Prompt template: {len(prompt_template)} characters (from DEFAULT_PROMPT_TEMPLATE)")
             if task.output_schema:
                 logger.info("    - Output schema: configured")
             else:
                 logger.info("    - Output schema: not configured (will use free-form)")
-        elif llm_config:
+        elif llm_config and not prompt_template:
             logger.warning("  • Stage 2 (LLM extraction): DISABLED - No prompt_template configured")
-            logger.warning("    To enable Stage 2 extraction, add 'prompt_template' to task config")
-        else:
+            logger.warning("    Reason: Neither task.prompt_template nor DEFAULT_PROMPT_TEMPLATE is set")
+            logger.warning("    To enable Stage 2 extraction:")
+            logger.warning("      1. Add 'prompt_template' to your task configuration, OR")
+            logger.warning("      2. Set DEFAULT_PROMPT_TEMPLATE in environment (.env file)")
+            logger.warning("      3. You can use file references like: @prompt_templates/detail_page_extract_full.txt")
+        elif not llm_config:
             logger.info("  • Stage 2 (LLM extraction): DISABLED - No LLM config")
+            logger.info("    To enable Stage 2 extraction:")
+            logger.info("      1. Set DEFAULT_LLM_PROVIDER, DEFAULT_LLM_MODEL, DEFAULT_LLM_API_KEY in environment")
+            logger.info("      2. Or specify llm_provider, llm_model, and llm_params.api_key in task config")
         
         logger.info("=" * 80)
         
@@ -166,7 +216,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         url=url,
                         crawl_config=task.crawl_config or {},
                         llm_config=llm_config,
-                        prompt_template=task.prompt_template,
+                        prompt_template=prompt_template,
                         output_schema=task.output_schema,
                     )
                     
@@ -320,7 +370,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         cleaning_stages = []
         if documents_created > 0:
             cleaning_stages.append("Stage 1 (crawl4ai cleaning)")
-        if llm_config and task.prompt_template:
+        if llm_config and prompt_template:
             cleaning_stages.append("Stage 2 (LLM extraction)")
         
         if cleaning_stages:

@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     DEFAULT_LLM_BASE_URL: Optional[str] = None
     DEFAULT_LLM_TEMPERATURE: Optional[float] = None
     DEFAULT_LLM_MAX_TOKENS: Optional[int] = None
+    DEFAULT_PROMPT_TEMPLATE: Optional[str] = None  # Default prompt for LLM extraction
     
     model_config = SettingsConfigDict(
         env_file=".env",
