@@ -82,10 +82,19 @@ def test_content_selector_heuristic():
         
         assert selector is not None, "Expected a selector, got None"
         assert 'article' in selector.lower(), f"Expected 'article' in selector, got '{selector}'"
-        assert 'heuristic' in reason.lower(), f"Expected reason to mention heuristic, got '{reason}'"
+        # Check for the exact reason text from implementation
+        assert 'heuristic with prioritized default candidates' in reason.lower() or \
+               'heuristic' in reason.lower(), \
+            f"Expected reason to mention heuristic, got '{reason}'"
+        
+        # Check that selector is properly formatted as comma-separated list
+        selectors_list = [s.strip() for s in selector.split(',')]
+        assert len(selectors_list) > 1, f"Expected multiple selectors, got {len(selectors_list)}"
+        assert selectors_list[0] == 'article', f"Expected 'article' as first selector, got '{selectors_list[0]}'"
         
         print(f"✅ PASS: Heuristic selector correctly generated (reason: {reason})")
-        print(f"   Selector preview: {selector[:100]}...")
+        print(f"   Selector count: {len(selectors_list)}")
+        print(f"   Top 3 selectors: {', '.join(selectors_list[:3])}")
         return True
         
     except Exception as e:
