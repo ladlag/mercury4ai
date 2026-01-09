@@ -607,6 +607,9 @@ class CrawlerService:
                     # Prefer fit_html for fallback (cleaned HTML)
                     stage2_html_content = fit_html if fit_html else result.cleaned_html
                     
+                    if not stage2_html_content:
+                        logger.warning("No HTML content available for fallback (fit_html and cleaned_html are both None)")
+                    
                     # Check if cleaned is substantially the same as raw (cleaning ineffective)
                     if raw_md and len(raw_md) > 0:
                         reduction_ratio = (len(raw_md) - len(cleaned_md)) / len(raw_md)
@@ -617,8 +620,12 @@ class CrawlerService:
                     # Fall back to raw markdown if cleaned is empty
                     stage2_input_source = "raw"
                     stage2_input_content = raw_md
-                    # Use raw HTML for fallback
-                    stage2_html_content = result.html
+                    # Use raw HTML for fallback (should always be available)
+                    stage2_html_content = result.html if result.html else result.cleaned_html
+                    
+                    if not stage2_html_content:
+                        logger.error("Critical: No HTML content available despite having markdown")
+                    
                     logger.warning("Cleaned markdown is empty, falling back to raw markdown for Stage 2")
                 else:
                     stage2_input_source = "none"
