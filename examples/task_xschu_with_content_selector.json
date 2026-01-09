@@ -1,0 +1,33 @@
+{
+  "name": "xschu Article Extraction with Content Selector",
+  "description": "Example task demonstrating content_selector for improved Stage 1 cleaning and stage2_fallback for better JSON extraction",
+  "urls": [
+    "https://www.xschu.com/gongbanzhongxue/84467.html"
+  ],
+  "crawl_config": {
+    "content_selector": ".content, article, #content, .detail-content, .post-content",
+    "content_filter_threshold": 0.35,
+    "stage2_fallback_enabled": true,
+    "wait_for": ".content",
+    "verbose": true
+  },
+  "_comment": "DeepSeek LLM Configuration - Use provider='openai' for standard OpenAI-compatible API. The system will add 'deepseek/' prefix to the model name automatically.",
+  "llm_provider": "openai",
+  "llm_model": "deepseek-chat",
+  "llm_params": {
+    "api_key": "YOUR_DEEPSEEK_API_KEY_HERE",
+    "base_url": "https://api.deepseek.com",
+    "temperature": 0.1
+  },
+  "prompt_template": "Extract the following information from the article:\n- title: The article title\n- content: The main article content\n- publish_date: When the article was published\n- author: The author name if available\n\nReturn as valid JSON.",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string"},
+      "content": {"type": "string"},
+      "publish_date": {"type": "string"},
+      "author": {"type": "string"}
+    },
+    "required": ["title", "content"]
+  }
+}

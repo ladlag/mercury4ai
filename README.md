@@ -10,7 +10,11 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 - **Task Queue Processing** using RQ and Redis
 - **Two-Stage Content Cleaning** with diagnostics:
   - **Stage 1**: Crawl4ai automatically removes headers, footers, and navigation (adjustable threshold)
+    - **NEW**: Configurable content selector for precise main content targeting
+    - **NEW**: Heuristic selector strategy with common content patterns
   - **Stage 2**: LLM extraction with custom prompts and JSON schemas per task
+    - **NEW**: Uses cleaned markdown from Stage 1 as input (reduces noise)
+    - **NEW**: Fallback LLM extraction when primary extraction fails
 - **LLM-Powered Extraction** via crawl4ai with schema-based structured output
 - **Chinese LLM Support** - DeepSeek (深度求索), Qwen (通义千问), ERNIE (文心一言)
 - **PostgreSQL Storage** for tasks, runs, and documents
@@ -29,6 +33,7 @@ A production-ready web crawling orchestrator built with FastAPI, RQ (Redis Queue
 📚 **Complete documentation:**
 - **[QUICKSTART.md](QUICKSTART.md)** - Get started in 5 minutes
 - **[CONFIG.md](CONFIG.md)** - Complete configuration guide with all options explained
+- **[CONTENT_SELECTOR_GUIDE.md](CONTENT_SELECTOR_GUIDE.md)** - **NEW**: Guide for content selector and Stage 2 fallback features
 - **[TROUBLESHOOTING_LLM_EXTRACTION.md](TROUBLESHOOTING_LLM_EXTRACTION.md)** - Fix LLM extraction and markdown cleaning issues
 - **[DEPLOYMENT.md](DEPLOYMENT.md)** - Production deployment guide
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** - System architecture and design principles

@@ -12,6 +12,8 @@ class CrawlConfigSchema(BaseModel):
     pdf: bool = Field(False, description="Generate PDF of page (increases storage requirements)")
     verbose: bool = Field(True, description="Enable detailed logging during crawl")
     content_filter_threshold: Optional[float] = Field(None, description="PruningContentFilter threshold (0.0-1.0, default 0.40 for Chinese content). Lower = more inclusive.")
+    content_selector: Optional[str] = Field(None, description="CSS selector for main content extraction in Stage 1 cleaning (e.g., 'article', '.content', '#main'). If not set, uses heuristic with default candidates.")
+    stage2_fallback_enabled: bool = Field(True, description="Enable fallback LLM extraction when crawl4ai extraction fails (Stage 2)")
 
 
 class LLMConfigSchema(BaseModel):
