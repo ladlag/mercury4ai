@@ -82,8 +82,10 @@ def test_content_selector_heuristic():
         
         assert selector is not None, "Expected a selector, got None"
         assert 'article' in selector.lower(), f"Expected 'article' in selector, got '{selector}'"
-        assert 'heuristic' in reason.lower() or 'prioritized' in reason.lower(), \
-            f"Expected reason to mention heuristic or prioritized, got '{reason}'"
+        # Check for the exact reason text from implementation
+        assert 'heuristic with prioritized default candidates' in reason.lower() or \
+               'heuristic' in reason.lower(), \
+            f"Expected reason to mention heuristic, got '{reason}'"
         
         # Check that selector is properly formatted as comma-separated list
         selectors_list = [s.strip() for s in selector.split(',')]

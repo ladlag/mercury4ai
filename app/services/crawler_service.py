@@ -324,7 +324,7 @@ async def fallback_llm_extraction(
         )
         
         # Extract using the strategy
-        # crawl4ai 0.7.8 signature: aextract(url: str, ix: int, html: str) -> List[Dict[str, Any]]
+        # crawl4ai 0.7.8+ signature: aextract(url: str, ix: int, html: str) -> List[Dict[str, Any]]
         extracted_list = await extraction_strategy.aextract(
             url=url,
             ix=0,  # Index for batch processing (0 for single extraction)
@@ -337,7 +337,8 @@ async def fallback_llm_extraction(
             # aextract returns List[Dict[str, Any]]
             # Convert to unified structured_data format
             if isinstance(extracted_list, list) and len(extracted_list) > 0:
-                # Use the first result if multiple items returned
+                # Single result: return the dict directly
+                # Multiple results: wrap in {'items': [...]} for consistency
                 structured_data = extracted_list[0] if len(extracted_list) == 1 else {'items': extracted_list}
                 
                 # Calculate output size
