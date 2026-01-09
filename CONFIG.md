@@ -156,6 +156,33 @@ DEFAULT_LLM_BASE_URL=https://api.deepseek.com
 DEFAULT_LLM_TEMPERATURE=0.1
 ```
 
+### Default Prompt Configuration
+
+Set default prompt template for LLM extraction when tasks don't specify one:
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DEFAULT_PROMPT_TEMPLATE` | No | None | Default inline prompt text |
+| `DEFAULT_PROMPT_TEMPLATE_REF` | No | None | Default prompt file reference (e.g., `@prompt_templates/default.txt`) |
+
+**Priority**: `DEFAULT_PROMPT_TEMPLATE` > `DEFAULT_PROMPT_TEMPLATE_REF` > disabled
+
+**Note**: Stage 2 (LLM extraction) requires BOTH:
+1. LLM configuration (provider, model, API key)
+2. A prompt template (from task config or defaults)
+
+If both are missing, Stage 2 will be disabled with a clear warning.
+
+**Example 1: Inline default prompt**
+```bash
+DEFAULT_PROMPT_TEMPLATE="Extract the main content, title, and metadata from this page in JSON format."
+```
+
+**Example 2: Reference to prompt file**
+```bash
+DEFAULT_PROMPT_TEMPLATE_REF=@prompt_templates/default_extraction.txt
+```
+
 ## Task Configuration
 
 Tasks define what URLs to crawl and how to process them.
@@ -461,7 +488,11 @@ Write prompts in Chinese for better results:
 
 ## Reusable Templates
 
-Create reusable prompt templates and output schemas that can be referenced by multiple tasks.
+✅ **Fully Supported** - Create reusable prompt templates and output schemas that can be referenced by multiple tasks.
+
+The system supports two ways to provide prompts and schemas:
+1. **Inline**: Embed directly in task configuration
+2. **File Reference**: Use `@` prefix to load from files (recommended for reusability)
 
 ### Prompt Templates
 
@@ -491,6 +522,21 @@ Create template files in `prompt_templates/` directory:
   "name": "News Task",
   "prompt_template": "@prompt_templates/news_article.txt",
   "output_schema": "@schemas/news_article.json"
+}
+```
+
+**Or use inline:**
+```json
+{
+  "name": "News Task",
+  "prompt_template": "Extract title, author, date, content from this news article in JSON format.",
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "title": {"type": "string"},
+      "author": {"type": "string"}
+    }
+  }
 }
 ```
 

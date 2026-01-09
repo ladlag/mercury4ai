@@ -16,6 +16,11 @@ from app.core.config import settings
 from app.models import CrawlTask, Document
 from app.services.task_service import TaskService, RunService, DocumentService, URLRegistryService
 from app.services.crawler_service import CrawlerService, download_resource, generate_minio_path
+from app.services.template_loader import (
+    resolve_prompt_template, 
+    resolve_output_schema,
+    get_default_prompt_from_env
+)
 
 # Configure logging for RQ workers
 # This ensures that all application logs are visible when worker processes tasks
@@ -97,27 +102,69 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         # Prepare LLM config using defaults if task config is incomplete
         llm_config = merge_llm_config(task)
         
-        # Show data cleaning configuration
+        # Resolve prompt template (support @prompt_templates/... references)
+        resolved_prompt = None
+        prompt_source = None
+        
+        if task.prompt_template:
+            # Task has a prompt - resolve it (could be inline or @prompt_templates/...)
+            resolved_prompt, prompt_source = resolve_prompt_template(task.prompt_template)
+            if not resolved_prompt:
+                logger.error(f"Failed to resolve task prompt_template: {task.prompt_template}")
+        else:
+            # Task has no prompt - try defaults from environment
+            if llm_config:
+                logger.info("Task has no prompt_template - checking for defaults in environment")
+                resolved_prompt, prompt_source = get_default_prompt_from_env(settings)
+                if not resolved_prompt:
+                    logger.warning("No default prompt configured in environment (DEFAULT_PROMPT_TEMPLATE or DEFAULT_PROMPT_TEMPLATE_REF)")
+        
+        # Resolve output schema (support @schemas/... references)
+        resolved_schema = None
+        schema_source = None
+        
+        if task.output_schema:
+            resolved_schema, schema_source = resolve_output_schema(task.output_schema)
+            if not resolved_schema:
+                logger.error(f"Failed to resolve task output_schema: {task.output_schema}")
+        
+        # Determine Stage 2 status with clear reasoning
+        stage2_enabled = False
+        stage2_reason = None
+        
+        if not llm_config:
+            stage2_reason = "No LLM config (missing provider/model or API key)"
+        elif not resolved_prompt:
+            if task.prompt_template:
+                stage2_reason = f"Failed to load prompt template: {task.prompt_template}"
+            else:
+                stage2_reason = "No prompt_template in task and no default prompt configured"
+                # Provide actionable guidance
+                logger.warning("  To enable Stage 2, either:")
+                logger.warning("    1. Add 'prompt_template' to task config (inline or @prompt_templates/...)")
+                logger.warning("    2. Set DEFAULT_PROMPT_TEMPLATE in .env (inline prompt text)")
+                logger.warning("    3. Set DEFAULT_PROMPT_TEMPLATE_REF in .env (@prompt_templates/... reference)")
+        else:
+            stage2_enabled = True
+            stage2_reason = f"Prompt from {prompt_source}"
+            if resolved_schema:
+                stage2_reason += f", Schema from {schema_source}"
+        
+        # Show data cleaning configuration with clear status
         logger.info("Data Cleaning Configuration:")
-        # Stage 1 cleaning is enabled if MARKDOWN_GENERATOR_AVAILABLE (crawl4ai 0.7.8+)
-        # The PruningContentFilter is configured automatically in crawler_service.py
-        # If not available, crawl4ai will still clean content but without the advanced filter
         logger.info("  • Stage 1 (crawl4ai): ENABLED - Removes headers, footers, navigation")
         
-        if llm_config and task.prompt_template:
+        if stage2_enabled:
             logger.info("  • Stage 2 (LLM extraction): ENABLED - Extracts structured data")
             logger.info(f"    - Provider: {llm_config['provider']}")
             logger.info(f"    - Model: {llm_config['model']}")
-            logger.info(f"    - Prompt template: {len(task.prompt_template)} characters")
-            if task.output_schema:
-                logger.info("    - Output schema: configured")
+            logger.info(f"    - Prompt: {prompt_source} ({len(resolved_prompt)} chars)")
+            if resolved_schema:
+                logger.info(f"    - Schema: {schema_source}")
             else:
-                logger.info("    - Output schema: not configured (will use free-form)")
-        elif llm_config:
-            logger.warning("  • Stage 2 (LLM extraction): DISABLED - No prompt_template configured")
-            logger.warning("    To enable Stage 2 extraction, add 'prompt_template' to task config")
+                logger.info("    - Schema: not configured (will use free-form)")
         else:
-            logger.info("  • Stage 2 (LLM extraction): DISABLED - No LLM config")
+            logger.warning(f"  • Stage 2 (LLM extraction): DISABLED - {stage2_reason}")
         
         logger.info("=" * 80)
         
@@ -150,24 +197,25 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     # Crawl URL
                     logger.info(f"Starting crawl for URL: {url}")
                     
-                    # Debug logging for task configuration
+                    # Debug logging for resolved configuration
                     if logger.isEnabledFor(logging.DEBUG):
-                        prompt_preview = (task.prompt_template or 'None')[:100]
-                        logger.debug(f"Task prompt_template: {prompt_preview}...")
+                        prompt_preview = (resolved_prompt or 'None')[:100]
+                        logger.debug(f"Resolved prompt: {prompt_preview}...")
                         # Safely get output_schema keys if it's a dict
                         schema_info = 'None'
-                        if task.output_schema:
-                            if isinstance(task.output_schema, dict):
-                                schema_info = str(list(task.output_schema.keys()))
+                        if resolved_schema:
+                            if isinstance(resolved_schema, dict):
+                                schema_info = str(list(resolved_schema.keys()))
                             else:
-                                schema_info = f'<{type(task.output_schema).__name__}>'
-                        logger.debug(f"Task output_schema keys: {schema_info}")
+                                schema_info = f'<{type(resolved_schema).__name__}>'
+                        logger.debug(f"Resolved schema keys: {schema_info}")
+                    
                     crawl_result = await crawler.crawl_url(
                         url=url,
                         crawl_config=task.crawl_config or {},
                         llm_config=llm_config,
-                        prompt_template=task.prompt_template,
-                        output_schema=task.output_schema,
+                        prompt_template=resolved_prompt,  # Use resolved prompt
+                        output_schema=resolved_schema,    # Use resolved schema
                     )
                     
                     if not crawl_result['success']:
@@ -227,6 +275,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         files_generated.append("cleaned markdown (Stage 1)")
                     if crawl_result.get('structured_data'):
                         files_generated.append("structured JSON (Stage 2)")
+                    elif stage2_enabled:
+                        # Stage 2 was enabled but didn't produce structured data - this is unusual
+                        logger.warning(f"  Stage 2 was enabled but no structured_data returned - LLM may have failed or returned invalid JSON")
                     
                     logger.info(f"✓ Successfully processed URL {idx}/{len(task.urls)}: {url}")
                     logger.info(f"  Generated files: {', '.join(files_generated) if files_generated else 'none'}")
@@ -320,11 +371,13 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         cleaning_stages = []
         if documents_created > 0:
             cleaning_stages.append("Stage 1 (crawl4ai cleaning)")
-        if llm_config and task.prompt_template:
-            cleaning_stages.append("Stage 2 (LLM extraction)")
+        if stage2_enabled:
+            cleaning_stages.append(f"Stage 2 (LLM extraction via {prompt_source})")
         
         if cleaning_stages:
             logger.info(f"  - Data cleaning performed: {', '.join(cleaning_stages)}")
+        elif not stage2_enabled:
+            logger.info(f"  - Data cleaning performed: Stage 1 only (Stage 2 disabled: {stage2_reason})")
         logger.info("=" * 80)
         
     except Exception as e:

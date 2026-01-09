@@ -190,13 +190,17 @@ Follow these conventions for consistency:
 
 ## Template Implementation Status
 
-**Note**: Template file references (using `@` prefix) are planned for future implementation. 
+**Status**: ✅ **SUPPORTED** - Template file references are now fully implemented.
 
-**Current Status**: Use inline prompts and schemas in tasks (as shown in examples).
+The system supports loading templates from files automatically when you use the `@` prefix syntax:
+- **`@prompt_templates/...`** - Load prompt templates from `prompt_templates/` directory
+- **`@schemas/...`** - Load output schemas from `schemas/` directory
 
-**Future Enhancement**: The system will support loading templates from these files automatically when you use the `@` prefix syntax.
+Both inline templates and file references are supported:
+- **Inline**: Embed the prompt/schema directly in task configuration
+- **File Reference**: Use `@` prefix to reference template files (recommended for reusability)
 
-To track or contribute to this feature, see the project's issue tracker.
+See examples below and in the [CONFIG.md](../CONFIG.md) for detailed usage.
 
 ## Examples
 

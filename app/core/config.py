@@ -47,6 +47,11 @@ class Settings(BaseSettings):
     DEFAULT_LLM_TEMPERATURE: Optional[float] = None
     DEFAULT_LLM_MAX_TOKENS: Optional[int] = None
     
+    # Default Prompt Configuration
+    # Used when task doesn't provide a prompt_template
+    DEFAULT_PROMPT_TEMPLATE: Optional[str] = None  # Inline prompt text
+    DEFAULT_PROMPT_TEMPLATE_REF: Optional[str] = None  # File reference like "@prompt_templates/default.txt"
+    
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
