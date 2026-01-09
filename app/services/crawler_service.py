@@ -207,7 +207,7 @@ class CrawlerService:
                         content_filter=content_filter
                     )
                     crawl_params['markdown_generator'] = markdown_generator
-                    logger.debug("Markdown generator configured with PruningContentFilter for content cleaning")
+                    logger.info("Stage 1 cleaning enabled: PruningContentFilter will remove headers, footers, and navigation")
                 except Exception as e:
                     logger.warning(f"Could not configure markdown generator: {e}. Will use default markdown generation.")
             else:
@@ -288,13 +288,13 @@ class CrawlerService:
                     )
                 
                 crawl_params['extraction_strategy'] = extraction_strategy
-                logger.info("LLM extraction strategy configured successfully")
+                logger.info("Stage 2 extraction enabled: LLM will extract structured data using custom schema")
             else:
                 # Log why LLM extraction is not being used
                 if not llm_config:
-                    logger.info("No LLM config provided - skipping structured extraction")
+                    logger.info("Stage 2 extraction disabled: No LLM config provided")
                 elif not prompt_template:
-                    logger.warning("LLM config present but no prompt_template provided - skipping structured extraction")
+                    logger.warning("Stage 2 extraction disabled: LLM config present but no prompt_template provided")
             
             # Execute crawl
             logger.info(f"Executing crawl for: {url}")
@@ -317,9 +317,16 @@ class CrawlerService:
             
             # Log what we extracted
             if markdown_versions['raw']:
-                logger.debug(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
+                logger.info(f"Extracted raw markdown: {len(markdown_versions['raw'])} characters")
             if markdown_versions['fit']:
-                logger.debug(f"Extracted fit markdown (cleaned by crawl4ai): {len(markdown_versions['fit'])} characters")
+                # Calculate and log cleaning statistics
+                raw_len = len(markdown_versions['raw']) if markdown_versions['raw'] else 0
+                fit_len = len(markdown_versions['fit'])
+                if raw_len > 0:
+                    reduction = ((raw_len - fit_len) / raw_len * 100)
+                    logger.info(f"Stage 1 cleaning completed: {raw_len} -> {fit_len} chars (reduced {reduction:.1f}%)")
+                else:
+                    logger.info(f"Extracted cleaned markdown: {fit_len} characters")
             else:
                 # If no fit markdown extracted, log more details for debugging
                 logger.warning("No fit_markdown extracted - content filter may not be working")
@@ -367,7 +374,7 @@ class CrawlerService:
             if result.extracted_content:
                 try:
                     crawl_result['structured_data'] = json.loads(result.extracted_content)
-                    logger.info(f"Successfully parsed structured data for {url}")
+                    logger.info(f"Stage 2 extraction completed: Successfully extracted structured data from {url}")
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse extracted_content as JSON for {url}: {str(e)}")
                     crawl_result['structured_data'] = {'raw': result.extracted_content}
