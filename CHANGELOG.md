@@ -1,5 +1,63 @@
 # Changelog
 
+## [Unreleased] - 2026-01-09
+
+### Added
+- **Template File Reference Support**: 
+  - ✅ Full support for `@prompt_templates/...` references in task `prompt_template` field
+  - ✅ Full support for `@schemas/...` references in task `output_schema` field
+  - System automatically loads prompt templates from `prompt_templates/` directory
+  - System automatically loads JSON schemas from `schemas/` directory
+  - Comprehensive error logging when files are missing or invalid
+  - Security checks prevent path traversal attacks
+  - Both inline and file reference styles are supported
+
+- **Default Prompt Configuration**:
+  - New environment variable: `DEFAULT_PROMPT_TEMPLATE` (inline prompt text)
+  - New environment variable: `DEFAULT_PROMPT_TEMPLATE_REF` (file reference like `@prompt_templates/default.txt`)
+  - Priority: task prompt > `DEFAULT_PROMPT_TEMPLATE` > `DEFAULT_PROMPT_TEMPLATE_REF` > disabled
+  - Clear logging when default prompts are used
+  - Enables Stage 2 (LLM extraction) even when tasks don't specify prompts
+
+- **Enhanced Stage 2 (LLM Extraction) Logging**:
+  - Clear "ENABLED" or "DISABLED" status with specific reasons
+  - Shows prompt source (inline / file reference / default)
+  - Shows schema source (inline / file reference / not configured)
+  - Actionable guidance when Stage 2 is disabled (what to do to enable it)
+  - Summary logs show which cleaning stages were performed
+  - Per-URL logs indicate if Stage 2 produced structured data
+
+- **Template Loader Service** (`app/services/template_loader.py`):
+  - `resolve_prompt_template()` - Load prompts from inline text or file references
+  - `resolve_output_schema()` - Load schemas from inline dicts or file references
+  - `get_default_prompt_from_env()` - Get default prompt from environment with priority handling
+  - Comprehensive error handling and validation
+  - Security checks for file access
+
+### Fixed
+- **Stage 2 Silent Skipping**: 
+  - Previously, Stage 2 would be silently disabled when `prompt_template` was missing
+  - Now logs clear warnings with actionable guidance on how to enable Stage 2
+  - Users can now use default prompts from environment to avoid repeating prompts in every task
+
+### Changed
+- **Stage 2 Trigger Logic**:
+  - Old: Required both `llm_config` AND task-level `prompt_template`
+  - New: Required `llm_config` AND (task `prompt_template` OR default prompt from environment)
+  - More flexible and user-friendly
+  
+- **Documentation Updates**:
+  - `prompt_templates/README.md`: Updated status from "planned" to "SUPPORTED"
+  - `CONFIG.md`: Added documentation for new environment variables
+  - `CONFIG.md`: Added examples of inline vs file reference usage
+  - `.env.example`: Added `DEFAULT_PROMPT_TEMPLATE` and `DEFAULT_PROMPT_TEMPLATE_REF` with documentation
+
+### Testing
+- Created comprehensive test suite for template loader
+- Manual test script validates all loading scenarios
+- Demo script shows Stage 2 configuration examples
+- All tests passing ✓
+
 ## [Unreleased] - 2026-01-07
 
 ### Added
