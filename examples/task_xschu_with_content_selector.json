@@ -11,10 +11,11 @@
     "wait_for": ".content",
     "verbose": true
   },
+  "_comment": "DeepSeek LLM Configuration - Use provider='openai' for standard OpenAI-compatible API. The system will add 'deepseek/' prefix to the model name automatically.",
   "llm_provider": "openai",
   "llm_model": "deepseek-chat",
   "llm_params": {
-    "api_key": "YOUR_API_KEY_HERE",
+    "api_key": "YOUR_DEEPSEEK_API_KEY_HERE",
     "base_url": "https://api.deepseek.com",
     "temperature": 0.1
   },
