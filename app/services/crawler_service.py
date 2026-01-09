@@ -10,6 +10,8 @@ import httpx
 from urllib.parse import urlparse
 import uuid
 
+logger = logging.getLogger(__name__)
+
 # Try to import markdown generation strategy (may not be available in all versions)
 try:
     from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
@@ -25,8 +27,6 @@ try:
 except ImportError:
     LLMCONFIG_AVAILABLE = False
     logger.warning("LLMConfig not available - crawl4ai 0.7.8+ is required for LLM extraction")
-
-logger = logging.getLogger(__name__)
 
 
 def extract_markdown_string(markdown_result: Any) -> Optional[str]:

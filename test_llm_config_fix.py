@@ -43,7 +43,11 @@ def test_build_llm_config_standard():
         return False
     
     print(f"✅ LLMConfig created: provider={llm_config.provider}")
-    print(f"   - api_token: {'***' + llm_config.api_token[-4:] if llm_config.api_token else 'None'}")
+    # Safe string slicing - check length first
+    if llm_config.api_token and len(llm_config.api_token) >= 4:
+        print(f"   - api_token: ***{llm_config.api_token[-4:]}")
+    else:
+        print(f"   - api_token: {'***' if llm_config.api_token else 'None'}")
     print(f"   - temperature: {llm_config.temperature}")
     print(f"   - max_tokens: {llm_config.max_tokens}")
     return True
@@ -69,7 +73,11 @@ def test_build_llm_config_deepseek():
     
     print(f"✅ LLMConfig created: provider={llm_config.provider}")
     print(f"   - base_url: {llm_config.base_url}")
-    print(f"   - api_token: {'***' + llm_config.api_token[-4:] if llm_config.api_token else 'None'}")
+    # Safe string slicing - check length first
+    if llm_config.api_token and len(llm_config.api_token) >= 4:
+        print(f"   - api_token: ***{llm_config.api_token[-4:]}")
+    else:
+        print(f"   - api_token: {'***' if llm_config.api_token else 'None'}")
     return True
 
 def test_build_llm_config_qwen():
