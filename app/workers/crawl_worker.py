@@ -226,13 +226,9 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         error_msg = crawl_result.get('error', 'Unknown error')
                         logger.error(f"Failed to crawl {url}: {error_msg}")
                         
-                        # Check for Stage 2 specific errors
                         # Note: When crawl fails, the failure is at the crawl stage regardless of Stage 2 config
                         # Stage 2 errors are only separate when crawl succeeds but Stage 2 fails
-                        stage2_status = crawl_result.get('stage2_status', {})
-                        if stage2_status.get('error') and stage2_status.get('error') != f"Crawl failed: {error_msg}":
-                            error_msg = f"{error_msg} | Stage 2: {stage2_status['error']}"
-                        
+                        # We categorize all crawl failures as 'crawl' stage
                         error_details.append({
                             'url': url,
                             'error': error_msg,
@@ -476,6 +472,7 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             json_path = generate_minio_path(
                 run_id, 'json', f"{document.id}.json"
             )
+            # Serialize JSON once and reuse for both size calculation and upload
             json_bytes = json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8')
             minio_client.upload_data(
                 json_path,

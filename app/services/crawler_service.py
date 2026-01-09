@@ -524,11 +524,18 @@ class CrawlerService:
                     stage2_output_size = len(json.dumps(crawl_result['structured_data']))
                     
                     # Log Stage 2 END with success details
+                    # Show sample of keys for large JSON objects to avoid expensive logging
+                    json_keys = list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'
+                    if isinstance(json_keys, list) and len(json_keys) > 10:
+                        json_keys_str = f"{json_keys[:10]}... ({len(json_keys)} total)"
+                    else:
+                        json_keys_str = str(json_keys)
+                    
                     logger.info("=" * 60)
                     logger.info("Stage 2 (LLM extraction) END - SUCCESS")
                     logger.info(f"  - URL: {url}")
                     logger.info(f"  - Output size: {stage2_output_size} bytes")
-                    logger.info(f"  - JSON keys: {list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'}")
+                    logger.info(f"  - JSON keys: {json_keys_str}")
                     logger.info("=" * 60)
                 except json.JSONDecodeError as e:
                     stage2_error = f"JSON parse failed: {str(e)}"

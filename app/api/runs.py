@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
+from minio.error import S3Error
 from app.core.database import get_db
 from app.core.auth import verify_api_key
 from app.core.redis_client import get_redis_client
@@ -131,9 +132,13 @@ async def get_run_logs(
         # Try to generate presigned URL for error log
         try:
             error_log_url = minio_client.get_presigned_url(error_log_path)
-            # get_presigned_url returns None if the file doesn't exist or there's an error
+            # get_presigned_url returns None if the file doesn't exist
+        except S3Error as e:
+            logger.debug(f"Could not generate presigned URL for error log (S3Error): {e}")
+            error_log_url = None
         except Exception as e:
-            logger.debug(f"Could not generate presigned URL for error log: {e}")
+            # Log unexpected errors but don't fail the request
+            logger.warning(f"Unexpected error generating presigned URL for error log: {e}")
             error_log_url = None
     
     response = {

@@ -69,7 +69,7 @@ async def test_stage2_no_prompt():
                 llm_config={
                     "provider": "openai",
                     "model": "gpt-4",
-                    "params": {"api_key": "fake-key"}
+                    "params": {"api_key": "test-api-key-not-real"}  # Test placeholder
                 },
                 prompt_template=None,  # Missing prompt!
                 output_schema=None
