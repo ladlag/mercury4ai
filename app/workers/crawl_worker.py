@@ -175,6 +175,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         urls_crawled = 0
         urls_failed = 0
         documents_created = 0
+        stage2_success_count = 0  # Track successful Stage 2 extractions
         
         # Track detailed errors for each URL
         error_details = []
@@ -224,14 +225,38 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         urls_failed += 1
                         error_msg = crawl_result.get('error', 'Unknown error')
                         logger.error(f"Failed to crawl {url}: {error_msg}")
+                        
+                        # Check for Stage 2 specific errors
+                        stage2_status = crawl_result.get('stage2_status', {})
+                        if stage2_status.get('error'):
+                            error_msg = f"{error_msg} | Stage 2: {stage2_status['error']}"
+                        
                         error_details.append({
                             'url': url,
                             'error': error_msg,
+                            'stage': 'crawl' if not stage2_status.get('enabled') else 'stage2',
                             'timestamp': datetime.utcnow().isoformat()
                         })
                         continue
                     
                     urls_crawled += 1
+                    
+                    # Check Stage 2 status even if crawl succeeded
+                    stage2_status = crawl_result.get('stage2_status', {})
+                    if stage2_status.get('enabled') and not stage2_status.get('success'):
+                        # Stage 2 was enabled but failed
+                        stage2_error = stage2_status.get('error', 'Unknown Stage 2 error')
+                        logger.warning(f"Stage 2 failed for {url}: {stage2_error}")
+                        error_details.append({
+                            'url': url,
+                            'error': f"Stage 2 extraction failed: {stage2_error}",
+                            'stage': 'stage2',
+                            'timestamp': datetime.utcnow().isoformat()
+                        })
+                    elif stage2_status.get('success'):
+                        # Stage 2 succeeded - track it
+                        stage2_success_count += 1
+                        logger.info(f"Stage 2 extraction succeeded for {url}")
                     
                     # Save document to database
                     logger.debug(f"Saving document to database for {url}")
@@ -367,11 +392,23 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
         logger.info(f"  - MinIO path: {today}/{run_id}")
         
         # Indicate what types of cleaning/extraction were performed
+        # Only show Stage 2 as "performed" if it actually succeeded
         cleaning_stages = []
         if documents_created > 0:
             cleaning_stages.append("Stage 1 (crawl4ai cleaning)")
-        if llm_config and prompt_template:
-            cleaning_stages.append("Stage 2 (LLM extraction)")
+        
+        # Accurate Stage 2 reporting
+        if stage2_success_count > 0:
+            cleaning_stages.append(f"Stage 2 (LLM extraction): {stage2_success_count} documents")
+        elif llm_config and prompt_template:
+            # Stage 2 was enabled but didn't succeed for any documents
+            stage2_errors = [e for e in error_details if e.get('stage') == 'stage2']
+            if stage2_errors:
+                cleaning_stages.append(f"Stage 2: FAILED ({len(stage2_errors)} errors)")
+            else:
+                cleaning_stages.append("Stage 2: ENABLED but no output")
+        else:
+            cleaning_stages.append("Stage 2: DISABLED")
         
         if cleaning_stages:
             logger.info(f"  - Data cleaning performed: {', '.join(cleaning_stages)}")
@@ -433,12 +470,21 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             json_path = generate_minio_path(
                 run_id, 'json', f"{document.id}.json"
             )
+            json_bytes = json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8')
             minio_client.upload_data(
                 json_path,
-                json.dumps(crawl_result['structured_data'], indent=2, ensure_ascii=False).encode('utf-8'),
+                json_bytes,
                 'application/json'
             )
-            logger.info(f"Saved structured data (Stage 2) to MinIO: {json_path}")
+            logger.info(f"✓ Saved structured data (Stage 2) to MinIO: {json_path}")
+            logger.info(f"  - Document ID: {document.id}")
+            logger.info(f"  - JSON size: {len(json_bytes)} bytes")
+            logger.info(f"  - Source URL: {document.source_url}")
+        else:
+            # Log when structured data is not available
+            stage2_status = crawl_result.get('stage2_status', {})
+            if stage2_status.get('enabled'):
+                logger.warning(f"No structured data to save for document {document.id} (Stage 2 was enabled)")
         
         # Save screenshot if available
         if crawl_result.get('screenshot'):

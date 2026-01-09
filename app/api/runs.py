@@ -116,14 +116,25 @@ async def get_run_logs(
         manifest_url = minio_client.get_presigned_url(run.manifest_path)
     
     # Generate error log URL if errors occurred
-    # Note: error_log.json is only created when error_details exists,
-    # which happens whenever urls_failed is incremented in the worker
+    # error_log.json is created when error_details exists in the worker
+    # This happens for:
+    # 1. Failed crawls (urls_failed > 0)
+    # 2. Stage 2 failures (even if crawl succeeded)
+    # We check if the file exists in MinIO to determine if error_log_url should be returned
     error_log_url = None
-    if run.urls_failed > 0:
+    error_log_path = None
+    
+    # Always try to get error log if logs_path exists
+    # The worker creates error_log.json when there are any errors (crawl or Stage 2)
+    if run.logs_path:
         error_log_path = generate_minio_path(run.id, 'logs', 'error_log.json')
         # Try to generate presigned URL for error log
-        error_log_url = minio_client.get_presigned_url(error_log_path)
-        # get_presigned_url returns None if the file doesn't exist or there's an error
+        try:
+            error_log_url = minio_client.get_presigned_url(error_log_path)
+            # get_presigned_url returns None if the file doesn't exist or there's an error
+        except Exception as e:
+            logger.debug(f"Could not generate presigned URL for error log: {e}")
+            error_log_url = None
     
     response = {
         "run_id": run_id,
@@ -135,6 +146,7 @@ async def get_run_logs(
     
     if error_log_url:
         response["error_log_url"] = error_log_url
+        response["error_log_path"] = error_log_path
         response["message"] += ". Error log available at error_log_url"
     
     return response

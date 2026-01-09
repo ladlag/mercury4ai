@@ -337,6 +337,10 @@ class CrawlerService:
                 logger.debug("PDF generation enabled")
             
             # Configure LLM extraction if provided (Stage 2 cleaning)
+            # Track Stage 2 status for detailed logging
+            stage2_enabled = False
+            stage2_error = None
+            
             if llm_config and prompt_template:
                 provider = llm_config.get('provider', 'openai')
                 model = llm_config.get('model', 'gpt-4')
@@ -354,6 +358,7 @@ class CrawlerService:
                     
                     if llm_config_obj is None:
                         # build_llm_config already logged the reason for failure
+                        stage2_error = "Failed to create LLMConfig (likely missing API key)"
                         logger.warning("Stage 2 extraction disabled: Failed to create LLMConfig. "
                                      "Continuing with Stage 1 only.")
                     else:
@@ -365,17 +370,21 @@ class CrawlerService:
                         )
                         
                         crawl_params['extraction_strategy'] = extraction_strategy
+                        stage2_enabled = True
                         logger.info("Stage 2 extraction enabled: LLM will extract structured data using custom schema")
                         
                 except Exception as e:
                     # If LLMExtractionStrategy creation fails, log and continue without it
+                    stage2_error = f"LLMExtractionStrategy creation failed: {str(e)}"
                     logger.error(f"Failed to create LLM extraction strategy: {e}", exc_info=True)
                     logger.warning("Stage 2 extraction disabled due to error. Continuing with Stage 1 only.")
             else:
                 # Log why LLM extraction is not being used
                 if not llm_config:
+                    stage2_error = "No LLM config provided"
                     logger.info("Stage 2 extraction disabled: No LLM config provided")
                 elif not prompt_template:
+                    stage2_error = "No prompt_template provided"
                     logger.warning("Stage 2 extraction disabled: LLM config present but no prompt_template provided")
             
             # Execute crawl
@@ -388,6 +397,12 @@ class CrawlerService:
                     'success': False,
                     'url': url,
                     'error': result.error_message,
+                    'stage2_status': {
+                        'enabled': stage2_enabled,
+                        'success': False,
+                        'error': f"Crawl failed: {result.error_message}",
+                        'output_size_bytes': None
+                    }
                 }
             
             logger.info(f"Crawl completed successfully for: {url}")
@@ -478,13 +493,33 @@ class CrawlerService:
                 logger.info(f"Extracted {images_count} images, {videos_count} videos, {audios_count} audios from {url}")
             
             # Parse structured data if LLM extraction was used
+            # Track Stage 2 execution status and results
+            stage2_success = False
+            stage2_output_size = 0
+            
             if result.extracted_content:
                 try:
                     crawl_result['structured_data'] = json.loads(result.extracted_content)
+                    stage2_success = True
+                    stage2_output_size = len(json.dumps(crawl_result['structured_data']))
                     logger.info(f"Stage 2 extraction completed: Successfully extracted structured data from {url}")
+                    logger.info(f"  - Structured data size: {stage2_output_size} bytes")
                 except json.JSONDecodeError as e:
+                    stage2_error = f"JSON parse failed: {str(e)}"
                     logger.warning(f"Failed to parse extracted_content as JSON for {url}: {str(e)}")
                     crawl_result['structured_data'] = {'raw': result.extracted_content}
+            elif stage2_enabled:
+                # Stage 2 was enabled but produced no output
+                stage2_error = "LLM returned empty/no extracted_content"
+                logger.warning(f"Stage 2 was enabled but produced no extracted_content for {url}")
+            
+            # Add Stage 2 metadata to result for downstream processing
+            crawl_result['stage2_status'] = {
+                'enabled': stage2_enabled,
+                'success': stage2_success,
+                'error': stage2_error,
+                'output_size_bytes': stage2_output_size if stage2_success else None
+            }
             
             logger.info(f"Successfully crawled: {url}")
             return crawl_result
@@ -495,6 +530,12 @@ class CrawlerService:
                 'success': False,
                 'url': url,
                 'error': str(e),
+                'stage2_status': {
+                    'enabled': False,
+                    'success': False,
+                    'error': f"Crawl failed: {str(e)}",
+                    'output_size_bytes': None
+                }
             }
 
 
