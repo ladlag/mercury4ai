@@ -1,4 +1,5 @@
 import asyncio
+import time
 from crawl4ai import AsyncWebCrawler, CacheMode, BrowserConfig
 from crawl4ai.extraction_strategy import LLMExtractionStrategy
 from typing import Dict, Any, List, Optional
@@ -220,7 +221,7 @@ def build_llm_config(
         return None
 
 
-def select_content_selector(crawl_config: Dict[str, Any], html: Optional[str] = None) -> tuple[Optional[str], str]:
+def select_content_selector(crawl_config: Dict[str, Any]) -> tuple[Optional[str], str]:
     """
     Select the best CSS selector for main content extraction.
     
@@ -231,7 +232,6 @@ def select_content_selector(crawl_config: Dict[str, Any], html: Optional[str] = 
     
     Args:
         crawl_config: Crawl configuration dictionary
-        html: Optional HTML content for heuristic analysis (not implemented yet)
     
     Returns:
         Tuple of (selected_selector, selection_reason)
@@ -299,7 +299,6 @@ async def fallback_llm_extraction(
         Extracted structured data as dictionary, or None if failed
     """
     try:
-        import time
         start_time = time.time()
         
         logger.info("=" * 60)
@@ -330,7 +329,7 @@ async def fallback_llm_extraction(
             # Parse the extracted content
             try:
                 structured_data = json.loads(extracted)
-                output_size = len(json.dumps(structured_data))
+                output_size = len(extracted)  # Use original string length instead of re-serializing
                 
                 logger.info("=" * 60)
                 logger.info("Stage 2 FALLBACK extraction END - SUCCESS")
