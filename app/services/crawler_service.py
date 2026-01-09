@@ -220,6 +220,146 @@ def build_llm_config(
         return None
 
 
+def select_content_selector(crawl_config: Dict[str, Any], html: Optional[str] = None) -> tuple[Optional[str], str]:
+    """
+    Select the best CSS selector for main content extraction.
+    
+    This implements a strategy to find the main content area:
+    1. If user provided content_selector, use it
+    2. If css_selector is provided, use it (for backward compatibility)
+    3. Otherwise, use heuristic with default candidate selectors
+    
+    Args:
+        crawl_config: Crawl configuration dictionary
+        html: Optional HTML content for heuristic analysis (not implemented yet)
+    
+    Returns:
+        Tuple of (selected_selector, selection_reason)
+    """
+    # Priority 1: User-provided content_selector (new field for Stage 1 cleaning)
+    if crawl_config.get('content_selector'):
+        selector = crawl_config['content_selector']
+        logger.info(f"Using user-provided content_selector: '{selector}'")
+        return selector, "user-provided content_selector"
+    
+    # Priority 2: Existing css_selector (for backward compatibility)
+    if crawl_config.get('css_selector'):
+        selector = crawl_config['css_selector']
+        logger.info(f"Using css_selector for content extraction: '{selector}'")
+        return selector, "css_selector (backward compatibility)"
+    
+    # Priority 3: Heuristic with default candidates
+    # These are common selectors for main content in web pages
+    # Ordered by likelihood of containing main content
+    default_candidates = [
+        'article',
+        'main',
+        '.content',
+        '#content',
+        '.main-content',
+        '#main-content',
+        '.post-content',
+        '.article-content',
+        '.detail-content',
+        '#main',
+        '.main',
+        '.post',
+        '.entry-content',
+        '[role="main"]',
+    ]
+    
+    # For now, return the first candidate as a comma-separated list
+    # This allows crawl4ai to try multiple selectors
+    # Future enhancement: parse HTML and select best based on text density
+    selector = ', '.join(default_candidates)
+    logger.info(f"Using heuristic content selector with {len(default_candidates)} candidates")
+    logger.debug(f"Candidate selectors: {selector}")
+    return selector, "heuristic with default candidates"
+
+
+async def fallback_llm_extraction(
+    markdown_content: str,
+    llm_config_obj: Any,
+    prompt_template: str,
+    output_schema: Optional[Dict[str, Any]] = None
+) -> Optional[Dict[str, Any]]:
+    """
+    Perform fallback LLM extraction when crawl4ai's extraction fails.
+    
+    This function makes a direct LLM call using the same configuration
+    that crawl4ai would use, but with the cleaned markdown as input.
+    
+    Args:
+        markdown_content: Cleaned markdown content to extract from
+        llm_config_obj: LLMConfig instance for the LLM provider
+        prompt_template: Prompt template for extraction
+        output_schema: Optional JSON schema for structured output
+    
+    Returns:
+        Extracted structured data as dictionary, or None if failed
+    """
+    try:
+        import time
+        start_time = time.time()
+        
+        logger.info("=" * 60)
+        logger.info("Stage 2 FALLBACK extraction START")
+        logger.info(f"  - Input size: {len(markdown_content)} characters")
+        logger.info(f"  - Prompt length: {len(prompt_template)} characters")
+        logger.info(f"  - Schema provided: {'yes' if output_schema else 'no'}")
+        logger.info("=" * 60)
+        
+        # Create a new extraction strategy with the cleaned content
+        extraction_strategy = LLMExtractionStrategy(
+            llm_config=llm_config_obj,
+            instruction=prompt_template,
+            schema=output_schema
+        )
+        
+        # Extract using the strategy
+        # Note: LLMExtractionStrategy.aextract() expects the markdown content
+        extracted = await extraction_strategy.aextract(
+            url="",  # Not used for fallback
+            html="",  # Not used for fallback
+            markdown=markdown_content
+        )
+        
+        elapsed = time.time() - start_time
+        
+        if extracted:
+            # Parse the extracted content
+            try:
+                structured_data = json.loads(extracted)
+                output_size = len(json.dumps(structured_data))
+                
+                logger.info("=" * 60)
+                logger.info("Stage 2 FALLBACK extraction END - SUCCESS")
+                logger.info(f"  - Elapsed time: {elapsed:.2f}s")
+                logger.info(f"  - Output size: {output_size} bytes")
+                logger.info("=" * 60)
+                
+                return structured_data
+            except json.JSONDecodeError as e:
+                logger.error(f"Fallback extraction returned invalid JSON: {e}")
+                logger.error(f"Raw output: {extracted[:200]}...")
+                return None
+        else:
+            logger.warning("=" * 60)
+            logger.warning("Stage 2 FALLBACK extraction END - FAILED")
+            logger.warning(f"  - Elapsed time: {elapsed:.2f}s")
+            logger.warning("  - Reason: LLM returned empty content")
+            logger.warning("=" * 60)
+            return None
+            
+    except Exception as e:
+        logger.error(f"Fallback LLM extraction failed: {e}", exc_info=True)
+        logger.error("=" * 60)
+        logger.error("Stage 2 FALLBACK extraction END - ERROR")
+        logger.error(f"  - Error: {str(e)}")
+        logger.error("=" * 60)
+        return None
+
+
 class CrawlerService:
     def __init__(self, verbose: bool = True, browser_type: str = "chromium", headless: bool = True):
         """
@@ -326,9 +466,15 @@ class CrawlerService:
             if crawl_config.get('wait_for'):
                 crawl_params['wait_for'] = crawl_config['wait_for']
                 logger.debug(f"Added wait_for selector: {crawl_config['wait_for']}")
-            if crawl_config.get('css_selector'):
-                crawl_params['css_selector'] = crawl_config['css_selector']
-                logger.debug(f"Added css_selector: {crawl_config['css_selector']}")
+            
+            # Select content selector for Stage 1 cleaning
+            # This helps crawl4ai focus on main content area
+            selected_selector, selection_reason = select_content_selector(crawl_config)
+            if selected_selector:
+                crawl_params['css_selector'] = selected_selector
+                logger.info(f"Content selector applied: '{selected_selector}' (reason: {selection_reason})")
+            else:
+                logger.info("No content selector applied - will process entire page")
             if crawl_config.get('screenshot'):
                 crawl_params['screenshot'] = True
                 logger.debug("Screenshot enabled")
@@ -340,6 +486,10 @@ class CrawlerService:
             # Track Stage 2 status for detailed logging
             stage2_enabled = False
             stage2_error = None
+            llm_config_obj = None
+            provider = None
+            model = None
+            params = {}
             
             if llm_config and prompt_template:
                 provider = llm_config.get('provider', 'openai')
@@ -390,25 +540,6 @@ class CrawlerService:
             # Execute crawl
             logger.info(f"Executing crawl for: {url}")
             
-            # Log detailed Stage 2 start information if enabled
-            if stage2_enabled:
-                api_key_present = "present" if params.get('api_key') else "absent"
-                base_url = params.get('base_url', 'default')
-                schema_configured = "yes" if output_schema else "no"
-                prompt_source = "task config" if prompt_template else "default"
-                
-                logger.info("=" * 60)
-                logger.info("Stage 2 (LLM extraction) START")
-                logger.info(f"  - URL: {url}")
-                logger.info(f"  - Provider: {provider}")
-                logger.info(f"  - Model: {model}")
-                logger.info(f"  - API key: {api_key_present}")
-                logger.info(f"  - Base URL: {base_url}")
-                logger.info(f"  - Prompt length: {len(prompt_template)} chars")
-                logger.info(f"  - Prompt source: {prompt_source}")
-                logger.info(f"  - Schema configured: {schema_configured}")
-                logger.info("=" * 60)
-            
             result = await self.crawler.arun(**crawl_params)
             
             if not result.success:
@@ -421,7 +552,8 @@ class CrawlerService:
                         'enabled': stage2_enabled,
                         'success': False,
                         'error': f"Crawl failed: {result.error_message}",
-                        'output_size_bytes': None
+                        'output_size_bytes': None,
+                        'fallback_used': False
                     }
                 }
             
@@ -431,6 +563,58 @@ class CrawlerService:
             # In crawl4ai 0.7.8+, result.markdown is a MarkdownGenerationResult object
             # with properties: raw_markdown (full), fit_markdown (cleaned), fit_html
             markdown_versions = extract_markdown_versions(result.markdown)
+            
+            # Determine which markdown to use for Stage 2
+            # Prefer cleaned (fit) markdown, fall back to raw if cleaned is empty
+            stage2_input_source = None
+            stage2_input_content = None
+            
+            if stage2_enabled:
+                # Determine input source for Stage 2
+                cleaned_md = markdown_versions.get('fit')
+                raw_md = markdown_versions.get('raw')
+                
+                if cleaned_md and len(cleaned_md.strip()) > 0:
+                    # Use cleaned markdown if available and not empty
+                    stage2_input_source = "cleaned"
+                    stage2_input_content = cleaned_md
+                    
+                    # Check if cleaned is substantially the same as raw (cleaning ineffective)
+                    if raw_md and len(raw_md) > 0:
+                        reduction_ratio = (len(raw_md) - len(cleaned_md)) / len(raw_md)
+                        if reduction_ratio < 0.05:  # Less than 5% reduction
+                            logger.warning(f"Cleaned markdown is very similar to raw ({reduction_ratio*100:.1f}% reduction)")
+                            logger.warning("Stage 1 cleaning may be ineffective - consider configuring content_selector")
+                elif raw_md and len(raw_md.strip()) > 0:
+                    # Fall back to raw markdown if cleaned is empty
+                    stage2_input_source = "raw"
+                    stage2_input_content = raw_md
+                    logger.warning("Cleaned markdown is empty, falling back to raw markdown for Stage 2")
+                else:
+                    stage2_input_source = "none"
+                    stage2_input_content = None
+                    logger.error("No markdown content available for Stage 2 extraction")
+                
+                # Log detailed Stage 2 start information with input source
+                api_key_present = "present" if params.get('api_key') else "absent"
+                base_url = params.get('base_url', 'default')
+                schema_configured = "yes" if output_schema else "no"
+                prompt_source = "task config" if prompt_template else "default"
+                
+                logger.info("=" * 60)
+                logger.info("Stage 2 (LLM extraction) START")
+                logger.info(f"  - URL: {url}")
+                logger.info(f"  - Provider: {provider}")
+                logger.info(f"  - Model: {model}")
+                logger.info(f"  - API key: {api_key_present}")
+                logger.info(f"  - Base URL: {base_url}")
+                logger.info(f"  - Input source: {stage2_input_source}")
+                if stage2_input_content:
+                    logger.info(f"  - Input size: {len(stage2_input_content)} characters")
+                logger.info(f"  - Prompt length: {len(prompt_template)} chars")
+                logger.info(f"  - Prompt source: {prompt_source}")
+                logger.info(f"  - Schema configured: {schema_configured}")
+                logger.info("=" * 60)
             
             # Log what we extracted and provide diagnostics for Stage 1 cleaning
             if markdown_versions['raw']:
@@ -516,6 +700,7 @@ class CrawlerService:
             # Track Stage 2 execution status and results
             stage2_success = False
             stage2_output_size = 0
+            stage2_fallback_used = False
             
             if result.extracted_content:
                 try:
@@ -554,13 +739,51 @@ class CrawlerService:
                 logger.warning(f"  - URL: {url}")
                 logger.warning(f"  - Error: {stage2_error}")
                 logger.warning("=" * 60)
+                
+                # Try fallback extraction if enabled and we have cleaned content
+                fallback_enabled = crawl_config.get('stage2_fallback_enabled', True)
+                if fallback_enabled and stage2_input_content and llm_config_obj:
+                    logger.info("Attempting Stage 2 FALLBACK extraction...")
+                    
+                    try:
+                        fallback_result = await fallback_llm_extraction(
+                            markdown_content=stage2_input_content,
+                            llm_config_obj=llm_config_obj,
+                            prompt_template=prompt_template,
+                            output_schema=output_schema
+                        )
+                        
+                        if fallback_result:
+                            # Fallback succeeded
+                            crawl_result['structured_data'] = fallback_result
+                            stage2_success = True
+                            stage2_fallback_used = True
+                            stage2_output_size = len(json.dumps(fallback_result))
+                            stage2_error = None  # Clear the error since fallback succeeded
+                            
+                            logger.info(f"✓ Stage 2 FALLBACK succeeded: {stage2_output_size} bytes extracted")
+                        else:
+                            logger.warning("✗ Stage 2 FALLBACK failed: No output generated")
+                            stage2_error = "Both primary and fallback extraction failed"
+                    except Exception as e:
+                        logger.error(f"Stage 2 FALLBACK exception: {e}", exc_info=True)
+                        stage2_error = f"Primary extraction failed, fallback error: {str(e)}"
+                elif fallback_enabled and not stage2_input_content:
+                    logger.warning("Stage 2 FALLBACK skipped: No input content available")
+                    stage2_error = "LLM extraction failed and no content for fallback"
+                elif fallback_enabled and not llm_config_obj:
+                    logger.warning("Stage 2 FALLBACK skipped: No LLM config available")
+                    stage2_error = "LLM extraction failed and no config for fallback"
+                else:
+                    logger.info("Stage 2 FALLBACK disabled by configuration")
             
             # Add Stage 2 metadata to result for downstream processing
             crawl_result['stage2_status'] = {
                 'enabled': stage2_enabled,
                 'success': stage2_success,
                 'error': stage2_error,
-                'output_size_bytes': stage2_output_size if stage2_success else None
+                'output_size_bytes': stage2_output_size if stage2_success else None,
+                'fallback_used': stage2_fallback_used
             }
             
             logger.info(f"Successfully crawled: {url}")
@@ -576,7 +799,8 @@ class CrawlerService:
                     'enabled': False,
                     'success': False,
                     'error': f"Crawl failed: {str(e)}",
-                    'output_size_bytes': None
+                    'output_size_bytes': None,
+                    'fallback_used': False
                 }
             }
 
