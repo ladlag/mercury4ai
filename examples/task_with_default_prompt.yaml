@@ -1,0 +1,28 @@
+# Example: Task WITHOUT Prompt (Uses Default from Environment)
+# This demonstrates using DEFAULT_PROMPT_TEMPLATE or DEFAULT_PROMPT_TEMPLATE_REF
+
+name: "简单爬取 - 使用环境默认提示词"
+description: "任务不指定 prompt_template，使用 .env 中的默认配置"
+
+urls:
+  - https://example.com/page1
+  - https://example.com/page2
+
+# 注意：这个任务没有 prompt_template 和 output_schema
+# Stage 2 (LLM extraction) 将使用环境变量中的默认值
+
+# 在 .env 中配置：
+# DEFAULT_PROMPT_TEMPLATE="提取页面的主要内容、标题和关键元数据"
+# 或
+# DEFAULT_PROMPT_TEMPLATE_REF=@prompt_templates/default_extraction.txt
+
+# 如果环境变量也没有配置，Stage 2 会被禁用，并输出清晰的指导信息：
+# "To enable Stage 2, either:
+#   1. Add 'prompt_template' to task config
+#   2. Set DEFAULT_PROMPT_TEMPLATE in .env
+#   3. Set DEFAULT_PROMPT_TEMPLATE_REF in .env"
+
+crawl_config:
+  verbose: true
+
+deduplication_enabled: true

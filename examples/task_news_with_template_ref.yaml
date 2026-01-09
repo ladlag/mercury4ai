@@ -1,0 +1,37 @@
+# Example Task: Using Template References and Default Prompts
+# This example demonstrates the new template loading features
+
+name: "新闻文章提取 - 使用模板引用"
+description: "从新闻网站提取文章，使用可复用的模板文件"
+
+urls:
+  - https://news.example.cn/article/123
+  - https://news.example.cn/article/456
+  - https://news.example.cn/article/789
+
+# 使用模板文件引用（推荐方式）
+# 系统会从 prompt_templates/ 目录加载提示词
+# 系统会从 schemas/ 目录加载输出结构
+prompt_template: "@prompt_templates/news_article_zh.txt"
+output_schema: "@schemas/news_article_zh.json"
+
+# 如果不想在任务中指定 prompt_template，可以在 .env 中设置默认值：
+# DEFAULT_PROMPT_TEMPLATE="提取标题、内容和元数据"
+# 或
+# DEFAULT_PROMPT_TEMPLATE_REF=@prompt_templates/default_extraction.txt
+
+# LLM 配置（可选，如果 .env 中已设置 DEFAULT_LLM_* 则不需要）
+# llm_provider: openai
+# llm_model: deepseek-chat
+# llm_params:
+#   api_key: "sk-your-key"
+#   base_url: "https://api.deepseek.com"
+#   temperature: 0.1
+
+crawl_config:
+  verbose: true
+  wait_for: ".article-content"
+
+deduplication_enabled: true
+fallback_download_enabled: true
+fallback_max_size_mb: 10
