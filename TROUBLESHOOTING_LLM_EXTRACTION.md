@@ -171,7 +171,7 @@ Possible reasons:
 ```yaml
 crawl_config:
   verbose: true
-  css_selector: "article, .main-content, .article-body"  # ← 只抓取主要内容
+  content_selector: "article, .main-content, .article-body"  # ← 只抓取主要内容
   wait_for: ".content"
 ```
 
@@ -180,6 +180,20 @@ crawl_config:
 article, .article, .content, .main, .main-content,
 .detail, .detail-content, #content, #main, .post-content,
 .entry-content, .article-content, main
+```
+
+**站点特定选择器示例 / Site-specific Examples:**
+
+xschu.cn (徐州教育):
+```yaml
+crawl_config:
+  content_selector: "div.w-770 section.box div#content"
+```
+
+bjhdedu.cn (北京教育):
+```yaml
+crawl_config:
+  content_selector: ".detail-content, .content, article"
 ```
 
 这样crawl4ai只会提取指定区域的内容，效果更精准。

@@ -34,6 +34,27 @@ This document describes the new features added to improve content extraction and
 - Educational sites: `.detail-content, .content, #main`
 - E-commerce: `.product-description, .item-content`
 - Government sites: `.content, #content, [role="main"]`
+- Chinese educational sites (xschu): `div.w-770 section.box div#content`
+
+**Site-specific selector examples**:
+
+For xschu.cn and similar Chinese educational websites:
+```json
+{
+  "crawl_config": {
+    "content_selector": "div.w-770 section.box div#content"
+  }
+}
+```
+
+For bjhdedu.cn:
+```json
+{
+  "crawl_config": {
+    "content_selector": ".detail-content, .content, article"
+  }
+}
+```
 
 ### 2. `stage2_fallback_enabled` (CrawlConfig)
 
@@ -51,9 +72,10 @@ This document describes the new features added to improve content extraction and
 ```
 
 **Behavior**:
-- When `true`: If crawl4ai's LLM extraction returns empty, the system will retry with a direct LLM call using the cleaned markdown
+- When `true`: If crawl4ai's LLM extraction returns empty, the system will retry with a direct LLM call using cleaned HTML content
 - When `false`: Stage 2 failures will not trigger a fallback attempt
 - The fallback uses the same LLM config, prompt, and schema as the primary extraction
+- **Important**: Fallback now uses HTML (not markdown) to match crawl4ai 0.7.8+ API signature: `aextract(url, ix, html)`
 - Fallback usage is tracked in `stage2_status.fallback_used`
 
 **When to use**:
