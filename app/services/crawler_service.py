@@ -389,6 +389,26 @@ class CrawlerService:
             
             # Execute crawl
             logger.info(f"Executing crawl for: {url}")
+            
+            # Log detailed Stage 2 start information if enabled
+            if stage2_enabled:
+                api_key_present = "present" if params.get('api_key') else "absent"
+                base_url = params.get('base_url', 'default')
+                schema_configured = "yes" if output_schema else "no"
+                prompt_source = "task config" if prompt_template else "default"
+                
+                logger.info("=" * 60)
+                logger.info("Stage 2 (LLM extraction) START")
+                logger.info(f"  - URL: {url}")
+                logger.info(f"  - Provider: {provider}")
+                logger.info(f"  - Model: {model}")
+                logger.info(f"  - API key: {api_key_present}")
+                logger.info(f"  - Base URL: {base_url}")
+                logger.info(f"  - Prompt length: {len(prompt_template)} chars")
+                logger.info(f"  - Prompt source: {prompt_source}")
+                logger.info(f"  - Schema configured: {schema_configured}")
+                logger.info("=" * 60)
+            
             result = await self.crawler.arun(**crawl_params)
             
             if not result.success:
@@ -502,16 +522,31 @@ class CrawlerService:
                     crawl_result['structured_data'] = json.loads(result.extracted_content)
                     stage2_success = True
                     stage2_output_size = len(json.dumps(crawl_result['structured_data']))
-                    logger.info(f"Stage 2 extraction completed: Successfully extracted structured data from {url}")
-                    logger.info(f"  - Structured data size: {stage2_output_size} bytes")
+                    
+                    # Log Stage 2 END with success details
+                    logger.info("=" * 60)
+                    logger.info("Stage 2 (LLM extraction) END - SUCCESS")
+                    logger.info(f"  - URL: {url}")
+                    logger.info(f"  - Output size: {stage2_output_size} bytes")
+                    logger.info(f"  - JSON keys: {list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'}")
+                    logger.info("=" * 60)
                 except json.JSONDecodeError as e:
                     stage2_error = f"JSON parse failed: {str(e)}"
-                    logger.warning(f"Failed to parse extracted_content as JSON for {url}: {str(e)}")
+                    logger.warning("=" * 60)
+                    logger.warning("Stage 2 (LLM extraction) END - FAILED")
+                    logger.warning(f"  - URL: {url}")
+                    logger.warning(f"  - Error: {stage2_error}")
+                    logger.warning(f"  - Raw content length: {len(result.extracted_content)} chars")
+                    logger.warning("=" * 60)
                     crawl_result['structured_data'] = {'raw': result.extracted_content}
             elif stage2_enabled:
                 # Stage 2 was enabled but produced no output
                 stage2_error = "LLM returned empty/no extracted_content"
-                logger.warning(f"Stage 2 was enabled but produced no extracted_content for {url}")
+                logger.warning("=" * 60)
+                logger.warning("Stage 2 (LLM extraction) END - FAILED")
+                logger.warning(f"  - URL: {url}")
+                logger.warning(f"  - Error: {stage2_error}")
+                logger.warning("=" * 60)
             
             # Add Stage 2 metadata to result for downstream processing
             crawl_result['stage2_status'] = {
