@@ -12,14 +12,14 @@ Tests:
 import asyncio
 import logging
 
+from app.services.crawler_service import CrawlerService
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
-from app.services.crawler_service import CrawlerService
 
 
 async def test_stage2_no_config():

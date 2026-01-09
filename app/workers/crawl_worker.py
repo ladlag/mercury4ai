@@ -227,14 +227,16 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                         logger.error(f"Failed to crawl {url}: {error_msg}")
                         
                         # Check for Stage 2 specific errors
+                        # Note: When crawl fails, the failure is at the crawl stage regardless of Stage 2 config
+                        # Stage 2 errors are only separate when crawl succeeds but Stage 2 fails
                         stage2_status = crawl_result.get('stage2_status', {})
-                        if stage2_status.get('error'):
+                        if stage2_status.get('error') and stage2_status.get('error') != f"Crawl failed: {error_msg}":
                             error_msg = f"{error_msg} | Stage 2: {stage2_status['error']}"
                         
                         error_details.append({
                             'url': url,
                             'error': error_msg,
-                            'stage': 'crawl' if not stage2_status.get('enabled') else 'stage2',
+                            'stage': 'crawl',  # Crawl failures are always categorized as 'crawl' stage
                             'timestamp': datetime.utcnow().isoformat()
                         })
                         continue
@@ -406,6 +408,10 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
             if stage2_errors:
                 cleaning_stages.append(f"Stage 2: FAILED ({len(stage2_errors)} errors)")
             else:
+                # This branch handles edge cases where:
+                # - LLM was configured but all URLs were skipped (deduplication)
+                # - LLM was configured but crawl failed for all URLs (no Stage 2 attempt)
+                # - LLM initialization failed silently for all URLs
                 cleaning_stages.append("Stage 2: ENABLED but no output")
         else:
             cleaning_stages.append("Stage 2: DISABLED")
