@@ -224,6 +224,50 @@ def build_llm_config(
         return None
 
 
+def filter_by_schema(
+    data: Dict[str, Any],
+    output_schema: Optional[Dict[str, Any]]
+) -> Tuple[Dict[str, Any], List[str]]:
+    """
+    Filter extracted data to match output schema strictly.
+    
+    This ensures that:
+    1. Only properties defined in schema are kept
+    2. Extra fields (like 'error') are removed
+    3. Returns list of missing required fields for validation
+    
+    Args:
+        data: Raw extracted data from LLM
+        output_schema: JSON Schema with 'properties' and optional 'required' fields
+    
+    Returns:
+        Tuple of (filtered_data, missing_required_fields)
+        - filtered_data: Dictionary with only schema-defined properties
+        - missing_required_fields: List of required field names that are missing
+    """
+    if not output_schema or not isinstance(data, dict):
+        return data, []
+    
+    # Get schema properties and required fields
+    schema_properties = output_schema.get('properties', {})
+    required_fields = output_schema.get('required', [])
+    
+    if not schema_properties:
+        # No properties defined in schema, return as-is
+        return data, []
+    
+    # Filter data to only include schema-defined properties
+    filtered_data = {}
+    for key in schema_properties.keys():
+        if key in data:
+            filtered_data[key] = data[key]
+    
+    # Check for missing required fields
+    missing_required = [field for field in required_fields if field not in filtered_data]
+    
+    return filtered_data, missing_required
+
+
 def select_content_selector(crawl_config: Dict[str, Any]) -> Tuple[Optional[str], str]:
     """
     Select the best CSS selector for main content extraction.
@@ -307,6 +351,10 @@ async def fallback_llm_extraction(
     try:
         start_time = time.time()
         
+        # Log schema details for observability
+        schema_keys = list(output_schema.get('properties', {}).keys()) if output_schema else []
+        required_keys = output_schema.get('required', []) if output_schema else []
+        
         logger.info("=" * 60)
         logger.info("Stage 2 FALLBACK extraction START")
         logger.info(f"  - URL: {url}")
@@ -314,6 +362,9 @@ async def fallback_llm_extraction(
         logger.info(f"  - Input size: {len(html_content)} characters")
         logger.info(f"  - Prompt length: {len(prompt_template)} characters")
         logger.info(f"  - Schema provided: {'yes' if output_schema else 'no'}")
+        if output_schema:
+            logger.info(f"  - Schema keys: {schema_keys}")
+            logger.info(f"  - Required keys: {required_keys}")
         logger.info("=" * 60)
         
         # Create a new extraction strategy with the cleaned content
@@ -341,6 +392,29 @@ async def fallback_llm_extraction(
                 # Multiple results: wrap in {'items': [...]} for consistency
                 structured_data = extracted_list[0] if len(extracted_list) == 1 else {'items': extracted_list}
                 
+                # Apply schema filtering if schema is provided
+                if output_schema and isinstance(structured_data, dict):
+                    raw_keys = list(structured_data.keys())
+                    filtered_data, missing_required = filter_by_schema(structured_data, output_schema)
+                    filtered_keys = list(filtered_data.keys())
+                    
+                    logger.info(f"  - Schema filtering applied:")
+                    logger.info(f"    • LLM returned keys: {raw_keys}")
+                    logger.info(f"    • Schema-filtered keys: {filtered_keys}")
+                    
+                    # Check for missing required fields
+                    if missing_required:
+                        logger.error("=" * 60)
+                        logger.error("Stage 2 FALLBACK extraction END - FAILED")
+                        logger.error(f"  - Elapsed time: {elapsed:.2f}s")
+                        logger.error(f"  - Reason: Missing required fields: {missing_required}")
+                        logger.error(f"  - LLM returned keys: {raw_keys}")
+                        logger.error(f"  - Schema required keys: {required_keys}")
+                        logger.error("=" * 60)
+                        return None
+                    
+                    structured_data = filtered_data
+                
                 # Calculate output size
                 output_size = len(json.dumps(structured_data, ensure_ascii=False))
                 
@@ -355,7 +429,7 @@ async def fallback_llm_extraction(
                 logger.info("Stage 2 FALLBACK extraction END - SUCCESS")
                 logger.info(f"  - Elapsed time: {elapsed:.2f}s")
                 logger.info(f"  - Output size: {output_size} bytes")
-                logger.info(f"  - Output keys: {keys_str}")
+                logger.info(f"  - Final output keys: {keys_str}")
                 logger.info(f"  - Items returned: {len(extracted_list)}")
                 logger.info("=" * 60)
                 
@@ -495,8 +569,10 @@ class CrawlerService:
             # Select content selector for Stage 1 cleaning
             # This helps crawl4ai focus on main content area
             selected_selector, selection_reason = select_content_selector(crawl_config)
+            effective_selector = None  # Track what was actually used
             if selected_selector:
                 crawl_params['css_selector'] = selected_selector
+                effective_selector = selected_selector
                 logger.info(f"Content selector applied: '{selected_selector}' (reason: {selection_reason})")
             else:
                 logger.info("No content selector applied - will process entire page")
@@ -674,22 +750,22 @@ class CrawlerService:
                         logger.warning("Possible reasons:")
                         logger.warning("  1. Page content is already clean (no headers/footers/navigation)")
                         logger.warning("  2. Page structure prevents PruningContentFilter from working effectively")
-                        logger.warning("  3. css_selector not configured - crawl4ai processed entire page")
+                        logger.warning("  3. Content selector may not be targeting the right element")
                         logger.warning("")
                         logger.warning("Recommendations to improve Stage 1 cleaning:")
-                        logger.warning("  • Add 'css_selector' to crawl_config to target main content area:")
-                        logger.warning("    Example selectors: 'article, .article, .content, .main, .main-content,")
-                        logger.warning("                       .detail, .detail-content, #content, #main, .post-content'")
+                        logger.warning("  • Add 'content_selector' to crawl_config to target main content area:")
+                        logger.warning("    Example selectors: 'article', '.content', '.main', '#content', '.detail-content'")
                         logger.warning("  • Inspect the page HTML to find the main content container CSS selector")
                         logger.warning("  • Use browser DevTools to identify the right selector")
+                        logger.warning("")
                         
-                        # Check if css_selector was used
-                        css_selector = crawl_config.get('css_selector')
-                        if css_selector:
-                            logger.info(f"  Note: css_selector is configured: '{css_selector}'")
+                        # Log effective selector information
+                        if effective_selector:
+                            logger.info(f"  ℹ Effective selector used: '{effective_selector}' (source: {selection_reason})")
                             logger.info("  The selector might be too broad or not matching main content.")
                         else:
-                            logger.info("  Note: No css_selector configured - processing entire page")
+                            logger.info("  ℹ No effective selector applied - processed entire page")
+                            logger.info("  Consider adding 'content_selector' to crawl_config.")
                 else:
                     logger.info(f"Extracted cleaned markdown: {fit_len} characters")
             else:
@@ -743,24 +819,57 @@ class CrawlerService:
             
             if result.extracted_content:
                 try:
-                    crawl_result['structured_data'] = json.loads(result.extracted_content)
-                    stage2_success = True
-                    stage2_output_size = len(json.dumps(crawl_result['structured_data']))
+                    raw_structured_data = json.loads(result.extracted_content)
                     
-                    # Log Stage 2 END with success details
-                    # Show sample of keys for large JSON objects to avoid expensive logging
-                    json_keys = list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'
-                    if isinstance(json_keys, list) and len(json_keys) > 10:
-                        json_keys_str = f"{json_keys[:10]}... ({len(json_keys)} total)"
+                    # Apply schema filtering if schema is provided
+                    if output_schema and isinstance(raw_structured_data, dict):
+                        schema_keys = list(output_schema.get('properties', {}).keys())
+                        required_keys = output_schema.get('required', [])
+                        raw_keys = list(raw_structured_data.keys())
+                        
+                        filtered_data, missing_required = filter_by_schema(raw_structured_data, output_schema)
+                        filtered_keys = list(filtered_data.keys())
+                        
+                        logger.info(f"  - Schema filtering applied:")
+                        logger.info(f"    • LLM returned keys: {raw_keys}")
+                        logger.info(f"    • Schema-filtered keys: {filtered_keys}")
+                        
+                        # Check for missing required fields
+                        if missing_required:
+                            stage2_error = f"Missing required fields: {missing_required}"
+                            logger.error("=" * 60)
+                            logger.error("Stage 2 (LLM extraction) END - FAILED")
+                            logger.error(f"  - URL: {url}")
+                            logger.error(f"  - Error: {stage2_error}")
+                            logger.error(f"  - LLM returned keys: {raw_keys}")
+                            logger.error(f"  - Schema required keys: {required_keys}")
+                            logger.error("=" * 60)
+                            # Don't set structured_data, will trigger fallback
+                        else:
+                            crawl_result['structured_data'] = filtered_data
+                            stage2_success = True
                     else:
-                        json_keys_str = str(json_keys)
+                        # No schema or not a dict, use as-is
+                        crawl_result['structured_data'] = raw_structured_data
+                        stage2_success = True
                     
-                    logger.info("=" * 60)
-                    logger.info("Stage 2 (LLM extraction) END - SUCCESS")
-                    logger.info(f"  - URL: {url}")
-                    logger.info(f"  - Output size: {stage2_output_size} bytes")
-                    logger.info(f"  - JSON keys: {json_keys_str}")
-                    logger.info("=" * 60)
+                    if stage2_success:
+                        stage2_output_size = len(json.dumps(crawl_result['structured_data']))
+                        
+                        # Log Stage 2 END with success details
+                        # Show sample of keys for large JSON objects to avoid expensive logging
+                        json_keys = list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'
+                        if isinstance(json_keys, list) and len(json_keys) > 10:
+                            json_keys_str = f"{json_keys[:10]}... ({len(json_keys)} total)"
+                        else:
+                            json_keys_str = str(json_keys)
+                        
+                        logger.info("=" * 60)
+                        logger.info("Stage 2 (LLM extraction) END - SUCCESS")
+                        logger.info(f"  - URL: {url}")
+                        logger.info(f"  - Output size: {stage2_output_size} bytes")
+                        logger.info(f"  - Final JSON keys: {json_keys_str}")
+                        logger.info("=" * 60)
                 except json.JSONDecodeError as e:
                     stage2_error = f"JSON parse failed: {str(e)}"
                     logger.warning("=" * 60)
@@ -770,14 +879,20 @@ class CrawlerService:
                     logger.warning(f"  - Raw content length: {len(result.extracted_content)} chars")
                     logger.warning("=" * 60)
                     crawl_result['structured_data'] = {'raw': result.extracted_content}
-            elif stage2_enabled:
-                # Stage 2 was enabled but produced no output
-                stage2_error = "LLM returned empty/no extracted_content"
-                logger.warning("=" * 60)
-                logger.warning("Stage 2 (LLM extraction) END - FAILED")
-                logger.warning(f"  - URL: {url}")
-                logger.warning(f"  - Error: {stage2_error}")
-                logger.warning("=" * 60)
+            
+            # Check if we need to trigger fallback
+            # Trigger fallback if:
+            # 1. Stage 2 was enabled but produced no output, OR
+            # 2. Stage 2 produced output but failed schema validation (stage2_error set but not stage2_success)
+            if stage2_enabled and not stage2_success:
+                # Set error if not already set
+                if not stage2_error:
+                    stage2_error = "LLM returned empty/no extracted_content"
+                    logger.warning("=" * 60)
+                    logger.warning("Stage 2 (LLM extraction) END - FAILED")
+                    logger.warning(f"  - URL: {url}")
+                    logger.warning(f"  - Error: {stage2_error}")
+                    logger.warning("=" * 60)
                 
                 # Try fallback extraction if enabled and we have cleaned content
                 fallback_enabled = crawl_config.get('stage2_fallback_enabled', True)
