@@ -81,7 +81,7 @@ def test_content_selector_heuristic():
         selector, reason = select_content_selector(crawl_config)
         
         assert selector is not None, "Expected a selector, got None"
-        assert 'article' in selector.lower(), f"Expected 'article' in selector, got '{selector}'"
+        assert '#content' in selector.lower(), f"Expected '#content' in selector, got '{selector}'"
         # Check for the exact reason text from implementation
         assert 'heuristic with prioritized default candidates' in reason.lower() or \
                'heuristic' in reason.lower(), \
@@ -90,7 +90,7 @@ def test_content_selector_heuristic():
         # Check that selector is properly formatted as comma-separated list
         selectors_list = [s.strip() for s in selector.split(',')]
         assert len(selectors_list) > 1, f"Expected multiple selectors, got {len(selectors_list)}"
-        assert selectors_list[0] == 'article', f"Expected 'article' as first selector, got '{selectors_list[0]}'"
+        assert selectors_list[0] == '#content', f"Expected '#content' as first selector, got '{selectors_list[0]}'"
         
         print(f"✅ PASS: Heuristic selector correctly generated (reason: {reason})")
         print(f"   Selector count: {len(selectors_list)}")
@@ -105,26 +105,26 @@ def test_content_selector_heuristic():
 
 
 def test_content_selector_priority():
-    """Test: content_selector takes priority over css_selector"""
+    """Test: css_selector takes priority over content_selector"""
     print("\n" + "="*80)
     print("TEST 4: Content selector - priority order")
     print("="*80)
     
     try:
         # Both content_selector and css_selector provided
-        # content_selector should take priority
+        # css_selector should take priority for backward compatibility/override
         crawl_config = {
             'content_selector': '.new-selector',
             'css_selector': '.old-selector'
         }
         selector, reason = select_content_selector(crawl_config)
         
-        assert selector == '.new-selector', \
-            f"Expected content_selector to take priority, got '{selector}'"
-        assert 'user-provided' in reason.lower(), \
-            f"Expected reason to indicate user-provided, got '{reason}'"
+        assert selector == '.old-selector', \
+            f"Expected css_selector to take priority, got '{selector}'"
+        assert 'css_selector' in reason.lower(), \
+            f"Expected reason to indicate css_selector, got '{reason}'"
         
-        print(f"✅ PASS: content_selector correctly takes priority over css_selector")
+        print(f"✅ PASS: css_selector correctly takes priority over content_selector")
         return True
         
     except Exception as e:

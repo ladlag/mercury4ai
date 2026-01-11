@@ -21,8 +21,8 @@ This document describes the new features added to improve content extraction and
 - If provided, crawl4ai will focus on the specified selector(s) for content extraction
 - Multiple selectors can be comma-separated (crawl4ai will try each)
 - If not provided, the system uses a heuristic with common content selectors:
-  - `article`, `main`, `.content`, `#content`, `.main-content`, `.post-content`, etc.
-- Takes priority over the legacy `css_selector` field
+  - `#content`, `div#content`, `article`, `main`, `.content`, `.main-content`, `.post-content`, etc.
+- **Priority**: Legacy `css_selector` still takes precedence when both fields are set (backward compatibility)
 
 **When to use**:
 - When Stage 1 cleaning is ineffective (e.g., raw and cleaned markdown are nearly identical)
@@ -34,7 +34,7 @@ This document describes the new features added to improve content extraction and
 - Educational sites: `.detail-content, .content, #main`
 - E-commerce: `.product-description, .item-content`
 - Government sites: `.content, #content, [role="main"]`
-- Chinese educational sites (xschu): `div.w-770 section.box div#content`
+- Chinese educational sites (xschu): Prefer `#content`/`div#content` (e.g., `div.w-770 section.box div#content`)
 
 **Site-specific selector examples**:
 

@@ -258,13 +258,14 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     
                     # Save document to database
                     logger.debug(f"Saving document to database for {url}")
+                    structured_data_to_persist = crawl_result.get('structured_data') if stage2_status.get('success') else None
                     document = DocumentService.upsert_document(
                         db=db,
                         run_id=run_id,
                         source_url=url,
                         title=crawl_result.get('metadata', {}).get('title'),
                         content=crawl_result.get('markdown'),
-                        structured_data=crawl_result.get('structured_data'),
+                        structured_data=structured_data_to_persist,
                         doc_metadata=crawl_result.get('metadata'),
                     )
                     documents_created += 1
@@ -273,7 +274,7 @@ async def execute_crawl_task_async(task_id: str, run_id: str):
                     # Save to MinIO and update document with paths
                     logger.debug(f"Saving document artifacts to MinIO for {url}")
                     await save_document_to_minio(
-                        db, run_id, document, crawl_result
+                        db, run_id, document, {**crawl_result, 'structured_data': structured_data_to_persist}
                     )
                     
                     # Process images
@@ -467,8 +468,9 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             )
             logger.info(f"Saved cleaned markdown (Stage 1) to MinIO: {markdown_fit_path}")
         
+        stage2_status = crawl_result.get('stage2_status', {})
         # Save structured data as JSON (second-level cleaning by LLM with custom schema)
-        if crawl_result.get('structured_data'):
+        if crawl_result.get('structured_data') and stage2_status.get('success'):
             json_path = generate_minio_path(
                 run_id, 'json', f"{document.id}.json"
             )
@@ -485,7 +487,6 @@ async def save_document_to_minio(db: Session, run_id: str, document: Document, c
             logger.info(f"  - Source URL: {document.source_url}")
         else:
             # Log when structured data is not available
-            stage2_status = crawl_result.get('stage2_status', {})
             if stage2_status.get('enabled'):
                 logger.warning(f"No structured data to save for document {document.id} (Stage 2 was enabled)")
         
