@@ -15,6 +15,8 @@ import uuid
 
 logger = logging.getLogger(__name__)
 
+CLEANING_REDUCTION_THRESHOLD = 0.05  # 5% minimum reduction to consider Stage 1 cleaning effective
+
 # Try to import markdown generation strategy (may not be available in all versions)
 try:
     from crawl4ai.markdown_generation_strategy import DefaultMarkdownGenerator
@@ -137,7 +139,7 @@ class _BasicHTMLTextExtractor(HTMLParser):
     def __init__(self):
         super().__init__()
         self.skip_depth = 0
-        self.parts: List[str] = []
+        self.parts = []
 
     def handle_starttag(self, tag, attrs):
         if tag in self.SKIP_TAGS:
@@ -214,8 +216,6 @@ CHINESE_LLM_PROVIDERS = {
         'base_url': None,  # Uses default Deepseek endpoint
     },
 }
-
-CLEANING_REDUCTION_THRESHOLD = 0.05  # 5% minimum reduction to consider Stage 1 cleaning effective
 
 
 def build_llm_config(
@@ -971,10 +971,12 @@ class CrawlerService:
                         stage2_error = f"Primary extraction failed, fallback error: {str(e)}"
                 elif fallback_enabled and not stage2_html_content:
                     logger.warning("Stage 2 FALLBACK skipped: No HTML content available")
-                    stage2_error = stage2_error or "LLM extraction failed and no HTML content for fallback"
+                    if stage2_error is None:
+                        stage2_error = "LLM extraction failed and no HTML content for fallback"
                 elif fallback_enabled and not llm_config_obj:
                     logger.warning("Stage 2 FALLBACK skipped: No LLM config available")
-                    stage2_error = stage2_error or "LLM extraction failed and no config for fallback"
+                    if stage2_error is None:
+                        stage2_error = "LLM extraction failed and no config for fallback"
                 else:
                     logger.info("Stage 2 FALLBACK disabled by configuration")
             
