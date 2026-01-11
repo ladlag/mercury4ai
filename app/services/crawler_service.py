@@ -202,6 +202,8 @@ CHINESE_LLM_PROVIDERS = {
     },
 }
 
+CLEANING_REDUCTION_THRESHOLD = 0.05  # 5% minimum reduction to consider Stage 1 cleaning effective
+
 
 def build_llm_config(
     provider: str,
@@ -710,7 +712,7 @@ class CrawlerService:
             )
 
             if html_source_for_cleaning and raw_md:
-                if not fit_md or (reduction_ratio is not None and reduction_ratio < 0.05):
+                if not fit_md or (reduction_ratio is not None and reduction_ratio < CLEANING_REDUCTION_THRESHOLD):
                     fallback_cleaned_md = fallback_clean_markdown(html_source_for_cleaning)
                     if fallback_cleaned_md:
                         markdown_versions['fit'] = fallback_cleaned_md
@@ -803,7 +805,7 @@ class CrawlerService:
                         logger.info("Stage 1 fallback cleaning applied using HTML parser (removed nav/header/footer/script/style)")
                     
                     # Provide diagnostics if cleaning ratio is very low (< 5%)
-                    if reduction < 5.0:
+                    if reduction < CLEANING_REDUCTION_THRESHOLD * 100:
                         logger.warning("⚠ Stage 1 cleaning reduced very little content (< 5%)")
                         logger.warning("Possible reasons:")
                         logger.warning("  1. Page content is already clean (no headers/footers/navigation)")
@@ -960,11 +962,11 @@ class CrawlerService:
                         stage2_error = f"Primary extraction failed, fallback error: {str(e)}"
                 elif fallback_enabled and not stage2_html_content:
                     logger.warning("Stage 2 FALLBACK skipped: No HTML content available")
-                    if not stage2_error:
+                    if stage2_error in (None, ""):
                         stage2_error = "LLM extraction failed and no HTML content for fallback"
                 elif fallback_enabled and not llm_config_obj:
                     logger.warning("Stage 2 FALLBACK skipped: No LLM config available")
-                    if not stage2_error:
+                    if stage2_error in (None, ""):
                         stage2_error = "LLM extraction failed and no config for fallback"
                 else:
                     logger.info("Stage 2 FALLBACK disabled by configuration")
