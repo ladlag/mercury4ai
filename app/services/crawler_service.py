@@ -167,6 +167,7 @@ class _BasicHTMLTextExtractor(HTMLParser):
 
     def get_text(self) -> str:
         text = " ".join(self.parts)
+        # Use two small regex passes so we collapse long space runs but keep intentional newlines.
         text = re.sub(r"[ \t]{2,}", " ", text)
         text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
         return text.strip()
@@ -194,8 +195,7 @@ def should_apply_stage1_fallback(raw_len: int, fit_len: Optional[int]) -> bool:
         return False
     if fit_len is None:
         return True
-    denominator = max(raw_len, 1)
-    reduction_ratio = (raw_len - fit_len) / denominator
+    reduction_ratio = (raw_len - fit_len) / raw_len
     return reduction_ratio < CLEANING_REDUCTION_THRESHOLD
 
 
@@ -971,12 +971,10 @@ class CrawlerService:
                         stage2_error = f"Primary extraction failed, fallback error: {str(e)}"
                 elif fallback_enabled and not stage2_html_content:
                     logger.warning("Stage 2 FALLBACK skipped: No HTML content available")
-                    if not stage2_error:
-                        stage2_error = "LLM extraction failed and no HTML content for fallback"
+                    stage2_error = stage2_error or "LLM extraction failed and no HTML content for fallback"
                 elif fallback_enabled and not llm_config_obj:
                     logger.warning("Stage 2 FALLBACK skipped: No LLM config available")
-                    if not stage2_error:
-                        stage2_error = "LLM extraction failed and no config for fallback"
+                    stage2_error = stage2_error or "LLM extraction failed and no config for fallback"
                 else:
                     logger.info("Stage 2 FALLBACK disabled by configuration")
             
