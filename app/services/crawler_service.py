@@ -194,7 +194,8 @@ def should_apply_stage1_fallback(raw_len: int, fit_len: Optional[int]) -> bool:
         return False
     if fit_len is None:
         return True
-    reduction_ratio = (raw_len - fit_len) / raw_len
+    denominator = max(raw_len, 1)
+    reduction_ratio = (raw_len - fit_len) / denominator
     return reduction_ratio < CLEANING_REDUCTION_THRESHOLD
 
 
@@ -930,7 +931,8 @@ class CrawlerService:
                 logger.warning(f"  - Error: {stage2_error}")
                 logger.warning("=" * 60)
 
-            # Attempt Stage 2 fallback whenever the primary path failed (including normalization errors)
+            # Attempt Stage 2 fallback whenever the primary path failed
+            # (extraction errors, JSON parsing errors, or normalization/schema failures).
             if stage2_enabled and not stage2_success:
                 fallback_enabled = crawl_config.get('stage2_fallback_enabled', True)
                 if fallback_enabled and stage2_html_content and llm_config_obj:
