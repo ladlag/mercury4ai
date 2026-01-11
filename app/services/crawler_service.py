@@ -193,13 +193,17 @@ def fallback_clean_markdown(html_content: Optional[str]) -> Optional[str]:
 def should_apply_stage1_fallback(raw_len: int, fit_len: Optional[int]) -> bool:
     """
     Decide whether to run the HTML-based Stage 1 fallback cleaning.
+    
+    Requirements from review:
+    - Prefer crawl4ai's own cleaning and LLM-based parsing.
+    - Only use this lightweight cleaning as a last resort when crawl4ai did not
+      produce a cleaned version at all.
     """
     if raw_len <= 0:
         return False
     if fit_len is None:
         return True
-    reduction_ratio = (raw_len - fit_len) / raw_len
-    return reduction_ratio < CLEANING_REDUCTION_THRESHOLD
+    return False
 
 
 # Provider configurations for Chinese LLM providers
