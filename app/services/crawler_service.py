@@ -169,7 +169,8 @@ class _BasicHTMLTextExtractor(HTMLParser):
 
     def get_text(self) -> str:
         text = " ".join(self.parts)
-        # Use two small regex passes so we collapse long space runs but keep intentional newlines.
+        # Normalize whitespace in two focused passes: first collapse long space runs,
+        # then trim excessive blank lines while preserving paragraph breaks.
         text = re.sub(r"[ \t]{2,}", " ", text)
         text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
         return text.strip()
@@ -934,6 +935,8 @@ class CrawlerService:
             # Attempt Stage 2 fallback whenever the primary path failed
             # (extraction errors, JSON parsing errors, or normalization/schema failures).
             if stage2_enabled and not stage2_success:
+                if stage2_error is None:
+                    stage2_error = "Stage 2 extraction failed"
                 fallback_enabled = crawl_config.get('stage2_fallback_enabled', True)
                 if fallback_enabled and stage2_html_content and llm_config_obj:
                     logger.info("Attempting Stage 2 FALLBACK extraction...")
@@ -971,12 +974,10 @@ class CrawlerService:
                         stage2_error = f"Primary extraction failed, fallback error: {str(e)}"
                 elif fallback_enabled and not stage2_html_content:
                     logger.warning("Stage 2 FALLBACK skipped: No HTML content available")
-                    if stage2_error is None:
-                        stage2_error = "LLM extraction failed and no HTML content for fallback"
+                    stage2_error = "LLM extraction failed and no HTML content for fallback"
                 elif fallback_enabled and not llm_config_obj:
                     logger.warning("Stage 2 FALLBACK skipped: No LLM config available")
-                    if stage2_error is None:
-                        stage2_error = "LLM extraction failed and no config for fallback"
+                    stage2_error = "LLM extraction failed and no config for fallback"
                 else:
                     logger.info("Stage 2 FALLBACK disabled by configuration")
             
