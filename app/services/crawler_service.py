@@ -8,10 +8,14 @@ from datetime import datetime, date
 from pathlib import Path
 import json
 import httpx
+import re
+from html.parser import HTMLParser
 from urllib.parse import urlparse
 import uuid
 
 logger = logging.getLogger(__name__)
+
+CLEANING_REDUCTION_THRESHOLD = 0.05  # 5% minimum reduction to consider Stage 1 cleaning effective
 
 # Try to import markdown generation strategy (may not be available in all versions)
 try:
@@ -118,6 +122,88 @@ def extract_markdown_versions(markdown_result: Any) -> Dict[str, Optional[str]]:
             pass
     
     return result
+
+
+class _BasicHTMLTextExtractor(HTMLParser):
+    """
+    Lightweight HTML to text extractor used as a fallback when crawl4ai cleaning
+    is ineffective. It removes navigation-like sections and strips scripts/styles
+    without introducing new dependencies.
+    """
+    SKIP_TAGS = {"nav", "header", "footer", "aside", "script", "style"}
+    BLOCK_TAGS = {
+        "p", "div", "section", "article", "br", "hr", "li", "ul", "ol",
+        "h1", "h2", "h3", "h4", "h5", "h6", "table", "tr", "td"
+    }
+
+    def __init__(self):
+        super().__init__()
+        self.skip_depth = 0
+        self.parts = []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP_TAGS:
+            self.skip_depth += 1
+            return
+        if self.skip_depth > 0:
+            return
+        if tag in self.BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP_TAGS:
+            if self.skip_depth > 0:
+                self.skip_depth -= 1
+            return
+        if self.skip_depth > 0:
+            return
+        if tag in self.BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if self.skip_depth > 0:
+            return
+        text = data.strip()
+        if text:
+            self.parts.append(text)
+
+    def get_text(self) -> str:
+        text = " ".join(self.parts)
+        # Normalize whitespace in two focused passes: first collapse long space runs,
+        # then trim excessive blank lines while preserving paragraph breaks.
+        text = re.sub(r"[ \t]{2,}", " ", text)
+        text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
+        return text.strip()
+
+
+def fallback_clean_markdown(html_content: Optional[str]) -> Optional[str]:
+    """
+    Apply a lightweight HTML-to-text cleaning pass to remove navigation,
+    headers/footers, and scripts/styles when built-in cleaning is ineffective.
+    """
+    if not html_content:
+        return None
+
+    extractor = _BasicHTMLTextExtractor()
+    extractor.feed(html_content)
+    cleaned_text = extractor.get_text()
+    return cleaned_text if cleaned_text else None
+
+
+def should_apply_stage1_fallback(raw_len: int, fit_len: Optional[int]) -> bool:
+    """
+    Decide whether to run the HTML-based Stage 1 fallback cleaning.
+    
+    Requirements from review:
+    - Prefer crawl4ai's own cleaning and LLM-based parsing.
+    - Only use this lightweight cleaning as a last resort when crawl4ai did not
+      produce a cleaned version at all.
+    """
+    if raw_len <= 0:
+        return False
+    if fit_len is None:
+        return True
+    return False
 
 
 # Provider configurations for Chinese LLM providers
@@ -630,6 +716,22 @@ class CrawlerService:
             # In crawl4ai 0.7.8+, result.markdown is a MarkdownGenerationResult object
             # with properties: raw_markdown (full), fit_markdown (cleaned), fit_html
             markdown_versions = extract_markdown_versions(result.markdown)
+
+            # If Stage 1 cleaning is missing or ineffective, apply a lightweight HTML-based fallback
+            stage1_fallback_used = False
+            html_source_for_cleaning = result.cleaned_html or result.html
+            raw_md = markdown_versions.get('raw')
+            fit_md = markdown_versions.get('fit')
+            raw_len_for_fallback = len(raw_md) if raw_md else 0
+            fit_len_for_fallback = len(fit_md) if fit_md else None
+
+            if html_source_for_cleaning and should_apply_stage1_fallback(raw_len_for_fallback, fit_len_for_fallback):
+                fallback_cleaned_md = fallback_clean_markdown(html_source_for_cleaning)
+                if fallback_cleaned_md:
+                    markdown_versions['fit'] = fallback_cleaned_md
+                    stage1_fallback_used = True
+                    logger.info("Applied fallback HTML cleaning to improve cleaned markdown")
+                    logger.info(f"  - Fallback cleaned length: {len(fallback_cleaned_md)} chars")
             
             # Determine which content to use for Stage 2 and fallback
             # For fallback, we need HTML (not markdown) to match aextract() signature
@@ -711,9 +813,12 @@ class CrawlerService:
                 if raw_len > 0:
                     reduction = ((raw_len - fit_len) / raw_len * 100)
                     logger.info(f"Stage 1 cleaning completed: {raw_len} -> {fit_len} chars (reduced {reduction:.1f}%)")
+
+                    if stage1_fallback_used:
+                        logger.info("Stage 1 fallback cleaning applied using HTML parser (removed nav/header/footer/script/style)")
                     
                     # Provide diagnostics if cleaning ratio is very low (< 5%)
-                    if reduction < 5.0:
+                    if reduction < CLEANING_REDUCTION_THRESHOLD * 100:
                         logger.warning("⚠ Stage 1 cleaning reduced very little content (< 5%)")
                         logger.warning("Possible reasons:")
                         logger.warning("  1. Page content is already clean (no headers/footers/navigation)")
@@ -830,8 +935,12 @@ class CrawlerService:
                 logger.warning(f"  - URL: {url}")
                 logger.warning(f"  - Error: {stage2_error}")
                 logger.warning("=" * 60)
-                
-                # Try fallback extraction if enabled and we have cleaned content
+
+            # Attempt Stage 2 fallback whenever the primary path failed
+            # (extraction errors, JSON parsing errors, or normalization/schema failures).
+            if stage2_enabled and not stage2_success:
+                if stage2_error is None:
+                    stage2_error = "Stage 2 extraction failed"
                 fallback_enabled = crawl_config.get('stage2_fallback_enabled', True)
                 if fallback_enabled and stage2_html_content and llm_config_obj:
                     logger.info("Attempting Stage 2 FALLBACK extraction...")
