@@ -186,6 +186,18 @@ def fallback_clean_markdown(html_content: Optional[str]) -> Optional[str]:
     return cleaned_text if cleaned_text else None
 
 
+def should_apply_stage1_fallback(raw_len: int, fit_len: Optional[int]) -> bool:
+    """
+    Decide whether to run the HTML-based Stage 1 fallback cleaning.
+    """
+    if raw_len <= 0:
+        return False
+    if fit_len is None:
+        return True
+    reduction_ratio = (raw_len - fit_len) / raw_len
+    return reduction_ratio < CLEANING_REDUCTION_THRESHOLD
+
+
 # Provider configurations for Chinese LLM providers
 CHINESE_LLM_PROVIDERS = {
     'qwen': {
@@ -705,20 +717,15 @@ class CrawlerService:
             raw_md = markdown_versions.get('raw')
             fit_md = markdown_versions.get('fit')
             raw_len_for_fallback = len(raw_md) if raw_md else 0
-            fit_len_for_fallback = len(fit_md) if fit_md else 0
-            reduction_ratio = (
-                (raw_len_for_fallback - fit_len_for_fallback) / raw_len_for_fallback
-                if raw_len_for_fallback else None
-            )
+            fit_len_for_fallback = len(fit_md) if fit_md else None
 
-            if html_source_for_cleaning and raw_md:
-                if not fit_md or (reduction_ratio is not None and reduction_ratio < CLEANING_REDUCTION_THRESHOLD):
-                    fallback_cleaned_md = fallback_clean_markdown(html_source_for_cleaning)
-                    if fallback_cleaned_md:
-                        markdown_versions['fit'] = fallback_cleaned_md
-                        stage1_fallback_used = True
-                        logger.info("Applied fallback HTML cleaning to improve cleaned markdown")
-                        logger.info(f"  - Fallback cleaned length: {len(fallback_cleaned_md)} chars")
+            if html_source_for_cleaning and should_apply_stage1_fallback(raw_len_for_fallback, fit_len_for_fallback):
+                fallback_cleaned_md = fallback_clean_markdown(html_source_for_cleaning)
+                if fallback_cleaned_md:
+                    markdown_versions['fit'] = fallback_cleaned_md
+                    stage1_fallback_used = True
+                    logger.info("Applied fallback HTML cleaning to improve cleaned markdown")
+                    logger.info(f"  - Fallback cleaned length: {len(fallback_cleaned_md)} chars")
             
             # Determine which content to use for Stage 2 and fallback
             # For fallback, we need HTML (not markdown) to match aextract() signature
@@ -962,11 +969,11 @@ class CrawlerService:
                         stage2_error = f"Primary extraction failed, fallback error: {str(e)}"
                 elif fallback_enabled and not stage2_html_content:
                     logger.warning("Stage 2 FALLBACK skipped: No HTML content available")
-                    if stage2_error in (None, ""):
+                    if not stage2_error:
                         stage2_error = "LLM extraction failed and no HTML content for fallback"
                 elif fallback_enabled and not llm_config_obj:
                     logger.warning("Stage 2 FALLBACK skipped: No LLM config available")
-                    if stage2_error in (None, ""):
+                    if not stage2_error:
                         stage2_error = "LLM extraction failed and no config for fallback"
                 else:
                     logger.info("Stage 2 FALLBACK disabled by configuration")

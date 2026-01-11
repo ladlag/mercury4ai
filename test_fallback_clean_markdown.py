@@ -25,6 +25,7 @@ def _install_dummy_crawl4ai():
             return self
 
         async def __aexit__(self, exc_type, exc_val, exc_tb):
+            # Propagate exceptions exactly like the real context manager would.
             return False
 
     dummy.AsyncWebCrawler = DummyAsyncWebCrawler
