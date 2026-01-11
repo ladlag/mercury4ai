@@ -12,7 +12,7 @@ Tests:
 import asyncio
 import logging
 
-from app.services.crawler_service import CrawlerService
+from app.services.crawler_service import CrawlerService, normalize_extracted_json
 
 # Setup logging
 logging.basicConfig(
@@ -20,6 +20,58 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+
+def test_stage2_normalize_filters_extra_keys():
+    """Test: normalize_extracted_json filters out keys not in schema and keeps required"""
+    print("\n" + "="*80)
+    print("TEST 0: Stage 2 normalization filters extra keys")
+    print("="*80)
+    
+    schema = {
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"]
+    }
+    data = {"title": "Hello", "error": False}
+    
+    filtered, err = normalize_extracted_json(data, schema)
+    
+    try:
+        assert err is None, f"Expected no error, got {err}"
+        assert filtered == {"title": "Hello"}, f"Expected filtered dict with title only, got {filtered}"
+        print("✅ PASS: normalization removed extra keys and retained required")
+        return True
+    except Exception as e:
+        print(f"❌ FAIL: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def test_stage2_normalize_missing_required():
+    """Test: normalize_extracted_json flags missing required fields"""
+    print("\n" + "="*80)
+    print("TEST 0B: Stage 2 normalization detects missing required")
+    print("="*80)
+    
+    schema = {
+        "properties": {"title": {"type": "string"}},
+        "required": ["title"]
+    }
+    data = {"error": False}
+    
+    filtered, err = normalize_extracted_json(data, schema)
+    
+    try:
+        assert filtered is None, f"Expected None filtered data, got {filtered}"
+        assert err and "Missing required" in err, f"Expected missing required error, got {err}"
+        print("✅ PASS: normalization reports missing required fields")
+        return True
+    except Exception as e:
+        print(f"❌ FAIL: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
 
 async def test_stage2_no_config():
@@ -178,6 +230,8 @@ async def main():
     results = []
     
     # Run tests
+    results.append(test_stage2_normalize_filters_extra_keys())
+    results.append(test_stage2_normalize_missing_required())
     results.append(await test_stage2_no_config())
     results.append(await test_stage2_no_prompt())
     results.append(await test_stage2_no_api_key())

@@ -229,8 +229,8 @@ def select_content_selector(crawl_config: Dict[str, Any]) -> Tuple[Optional[str]
     Select the best CSS selector for main content extraction.
     
     This implements a strategy to find the main content area:
-    1. If user provided content_selector, use it
-    2. If css_selector is provided, use it (for backward compatibility)
+    1. If css_selector is provided, use it (backward compatibility / explicit override)
+    2. If user provided content_selector, use it
     3. Otherwise, use heuristic with prioritized default candidate selectors
     
     Args:
@@ -239,17 +239,17 @@ def select_content_selector(crawl_config: Dict[str, Any]) -> Tuple[Optional[str]
     Returns:
         Tuple of (selected_selector, selection_reason)
     """
-    # Priority 1: User-provided content_selector (new field for Stage 1 cleaning)
+    # Priority 1: Existing css_selector (for backward compatibility and explicit override)
+    if crawl_config.get('css_selector'):
+        selector = crawl_config['css_selector']
+        logger.info(f"Using css_selector for content extraction: '{selector}'")
+        return selector, "css_selector (backward compatibility/override)"
+    
+    # Priority 2: User-provided content_selector (new field for Stage 1 cleaning)
     if crawl_config.get('content_selector'):
         selector = crawl_config['content_selector']
         logger.info(f"Using user-provided content_selector: '{selector}'")
         return selector, "user-provided content_selector"
-    
-    # Priority 2: Existing css_selector (for backward compatibility)
-    if crawl_config.get('css_selector'):
-        selector = crawl_config['css_selector']
-        logger.info(f"Using css_selector for content extraction: '{selector}'")
-        return selector, "css_selector (backward compatibility)"
     
     # Priority 3: Heuristic with default candidates
     # These are common selectors for main content in web pages
@@ -257,14 +257,15 @@ def select_content_selector(crawl_config: Dict[str, Any]) -> Tuple[Optional[str]
     # Using comma-separated list allows crawl4ai to try each selector in order
     # and use the first match found
     default_candidates = [
-        'article',           # HTML5 article element (highest priority)
+        '#content',          # Generic content ID (common on Chinese educational sites)
+        'div#content',
+        'article',           # HTML5 article element (high priority)
         'main',              # HTML5 main element
         '[role="main"]',     # ARIA main role
         '.article-content',  # Common article content class
         '.post-content',     # Common blog post class
         '.detail-content',   # Common detail page class
         '.content',          # Generic content class
-        '#content',          # Generic content ID
         '.main-content',     # Common main content class
         '#main-content',     # Common main content ID
         '.entry-content',    # WordPress default
@@ -279,6 +280,45 @@ def select_content_selector(crawl_config: Dict[str, Any]) -> Tuple[Optional[str]
     logger.info(f"  Top candidates: {', '.join(default_candidates[:5])}")
     logger.debug(f"  Full selector list: {selector}")
     return selector, "heuristic with prioritized default candidates"
+
+
+def normalize_extracted_json(
+    data: Any,
+    schema: Optional[Dict[str, Any]]
+) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """
+    Normalize LLM output to comply with the provided JSON schema.
+    
+    - Filters out keys not defined in schema.properties
+    - Validates required fields presence
+    
+    Returns:
+        (filtered_data, error_message)
+    """
+    if not schema or not isinstance(schema, dict):
+        return data, None
+    
+    if not isinstance(data, dict):
+        return None, "Extracted data is not an object; cannot satisfy schema"
+    
+    properties = schema.get('properties') or {}
+    allowed_keys = set(properties.keys())
+    filtered = {k: v for k, v in data.items() if k in allowed_keys}
+    
+    missing_required = [
+        key for key in schema.get('required', []) if key not in filtered
+    ]
+    
+    logger.info("Stage 2 normalization summary:")
+    logger.info(f"  - schema keys: {sorted(list(allowed_keys)) if allowed_keys else '[]'}")
+    logger.info(f"  - raw keys: {sorted(list(data.keys())) if isinstance(data, dict) else 'N/A'}")
+    logger.info(f"  - kept keys: {sorted(list(filtered.keys())) if filtered else '[]'}")
+    logger.info(f"  - missing required: {missing_required if missing_required else 'none'}")
+    
+    if missing_required:
+        return None, f"Missing required fields: {', '.join(missing_required)}"
+    
+    return filtered, None
 
 
 async def fallback_llm_extraction(
@@ -494,7 +534,9 @@ class CrawlerService:
             
             # Select content selector for Stage 1 cleaning
             # This helps crawl4ai focus on main content area
+            effective_selector = None
             selected_selector, selection_reason = select_content_selector(crawl_config)
+            effective_selector = selected_selector
             if selected_selector:
                 crawl_params['css_selector'] = selected_selector
                 logger.info(f"Content selector applied: '{selected_selector}' (reason: {selection_reason})")
@@ -663,6 +705,8 @@ class CrawlerService:
                 # Calculate and log cleaning statistics
                 raw_len = len(markdown_versions['raw']) if markdown_versions['raw'] else 0
                 fit_len = len(markdown_versions['fit'])
+                selector_label = effective_selector if effective_selector else 'none'
+                logger.info(f"Content selector diagnostic: selector='{selector_label}' (reason: {selection_reason}), raw_len={raw_len}, cleaned_len={fit_len}")
                 
                 if raw_len > 0:
                     reduction = ((raw_len - fit_len) / raw_len * 100)
@@ -674,22 +718,21 @@ class CrawlerService:
                         logger.warning("Possible reasons:")
                         logger.warning("  1. Page content is already clean (no headers/footers/navigation)")
                         logger.warning("  2. Page structure prevents PruningContentFilter from working effectively")
-                        logger.warning("  3. css_selector not configured - crawl4ai processed entire page")
+                        logger.warning("  3. No effective selector configured - crawl4ai processed entire page")
                         logger.warning("")
                         logger.warning("Recommendations to improve Stage 1 cleaning:")
-                        logger.warning("  • Add 'css_selector' to crawl_config to target main content area:")
-                        logger.warning("    Example selectors: 'article, .article, .content, .main, .main-content,")
-                        logger.warning("                       .detail, .detail-content, #content, #main, .post-content'")
+                        logger.warning("  • Add 'content_selector' (or legacy 'css_selector') to target main content area:")
+                        logger.warning("    Example selectors: '#content, div#content, article, .article, .content,")
+                        logger.warning("                       .main, .main-content, .detail, .detail-content, #main'")
                         logger.warning("  • Inspect the page HTML to find the main content container CSS selector")
                         logger.warning("  • Use browser DevTools to identify the right selector")
                         
-                        # Check if css_selector was used
-                        css_selector = crawl_config.get('css_selector')
-                        if css_selector:
-                            logger.info(f"  Note: css_selector is configured: '{css_selector}'")
+                        # Check which selector was used
+                        if effective_selector:
+                            logger.info(f"  Note: Effective selector used: '{effective_selector}' (reason: {selection_reason})")
                             logger.info("  The selector might be too broad or not matching main content.")
                         else:
-                            logger.info("  Note: No css_selector configured - processing entire page")
+                            logger.info("  Note: No content selector configured - processing entire page")
                 else:
                     logger.info(f"Extracted cleaned markdown: {fit_len} characters")
             else:
@@ -740,27 +783,36 @@ class CrawlerService:
             stage2_success = False
             stage2_output_size = 0
             stage2_fallback_used = False
+            normalized_data = None
             
             if result.extracted_content:
                 try:
-                    crawl_result['structured_data'] = json.loads(result.extracted_content)
-                    stage2_success = True
-                    stage2_output_size = len(json.dumps(crawl_result['structured_data']))
+                    parsed_structured = json.loads(result.extracted_content)
+                    normalized_data, normalize_error = normalize_extracted_json(parsed_structured, output_schema)
+                    
+                    if normalize_error:
+                        stage2_error = normalize_error
+                        logger.warning(f"Stage 2 normalization failed: {normalize_error}")
+                    else:
+                        crawl_result['structured_data'] = normalized_data
+                        stage2_success = True
+                        stage2_output_size = len(json.dumps(crawl_result['structured_data']))
                     
                     # Log Stage 2 END with success details
                     # Show sample of keys for large JSON objects to avoid expensive logging
-                    json_keys = list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'
-                    if isinstance(json_keys, list) and len(json_keys) > 10:
-                        json_keys_str = f"{json_keys[:10]}... ({len(json_keys)} total)"
-                    else:
-                        json_keys_str = str(json_keys)
-                    
-                    logger.info("=" * 60)
-                    logger.info("Stage 2 (LLM extraction) END - SUCCESS")
-                    logger.info(f"  - URL: {url}")
-                    logger.info(f"  - Output size: {stage2_output_size} bytes")
-                    logger.info(f"  - JSON keys: {json_keys_str}")
-                    logger.info("=" * 60)
+                    if stage2_success:
+                        json_keys = list(crawl_result['structured_data'].keys()) if isinstance(crawl_result['structured_data'], dict) else 'N/A'
+                        if isinstance(json_keys, list) and len(json_keys) > 10:
+                            json_keys_str = f"{json_keys[:10]}... ({len(json_keys)} total)"
+                        else:
+                            json_keys_str = str(json_keys)
+                        
+                        logger.info("=" * 60)
+                        logger.info("Stage 2 (LLM extraction) END - SUCCESS")
+                        logger.info(f"  - URL: {url}")
+                        logger.info(f"  - Output size: {stage2_output_size} bytes")
+                        logger.info(f"  - JSON keys: {json_keys_str}")
+                        logger.info("=" * 60)
                 except json.JSONDecodeError as e:
                     stage2_error = f"JSON parse failed: {str(e)}"
                     logger.warning("=" * 60)
@@ -796,14 +848,19 @@ class CrawlerService:
                         )
                         
                         if fallback_result:
-                            # Fallback succeeded
-                            crawl_result['structured_data'] = fallback_result
-                            stage2_success = True
-                            stage2_fallback_used = True
-                            stage2_output_size = len(json.dumps(fallback_result))
-                            stage2_error = None  # Clear the error since fallback succeeded
-                            
-                            logger.info(f"✓ Stage 2 FALLBACK succeeded: {stage2_output_size} bytes extracted")
+                            normalized_fallback, normalize_error = normalize_extracted_json(fallback_result, output_schema)
+                            if normalize_error:
+                                logger.warning(f"Stage 2 FALLBACK normalization failed: {normalize_error}")
+                                stage2_error = normalize_error
+                            else:
+                                # Fallback succeeded
+                                crawl_result['structured_data'] = normalized_fallback
+                                stage2_success = True
+                                stage2_fallback_used = True
+                                stage2_output_size = len(json.dumps(normalized_fallback))
+                                stage2_error = None  # Clear the error since fallback succeeded
+                                
+                                logger.info(f"✓ Stage 2 FALLBACK succeeded: {stage2_output_size} bytes extracted")
                         else:
                             logger.warning("✗ Stage 2 FALLBACK failed: No output generated")
                             stage2_error = "Both primary and fallback extraction failed"
